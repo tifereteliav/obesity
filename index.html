@@ -1,1184 +1,1242 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Activity, 
-  Brain, 
-  Shield, 
-  Award, 
-  ChevronRight, 
-  Play, 
-  RotateCcw, 
-  Info, 
-  Heart, 
-  TrendingUp, 
-  CheckCircle, 
-  XCircle, 
-  Layers, 
-  Calculator, 
-  Zap, 
-  HelpCircle,
-  Sparkles,
-  Users,
-  Check,
-  Flame,
-  Volume2,
-  VolumeX,
-  Clipboard,
-  BookOpen
-} from 'lucide-react';
-
-// --- Web Audio API Synth Sound Effects ---
-class SoundEffects {
-  constructor() {
-    this.ctx = null;
-    this.muted = false;
-  }
-  init() {
-    if (!this.ctx) {
-      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MetaboLex: The Metabolic Journey</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brandDark: '#0A1428',
+            brandIndigo: '#16213E',
+            brandTeal: '#00D4C5',
+            brandCyan: '#38BDF8',
+          }
+        }
+      }
     }
-  }
-  playClick() {
-    if (this.muted) return;
-    this.init();
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(600, this.ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.1);
-    gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
-    osc.connect(gain);
-    gain.connect(this.ctx.destination);
-    osc.start();
-    osc.stop(this.ctx.currentTime + 0.1);
-  }
-  playSuccess() {
-    if (this.muted) return;
-    this.init();
-    const now = this.ctx.currentTime;
-    // Chime chord: C5 -> E5 -> G5
-    const freqs = [523.25, 659.25, 783.99];
-    freqs.forEach((f, i) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(f, now + i * 0.05);
-      gain.gain.setValueAtTime(0, now);
-      gain.gain.linearRampToValueAtTime(0.08, now + i * 0.05 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.3);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now + i * 0.05);
-      osc.stop(now + i * 0.05 + 0.35);
-    });
-  }
-  playError() {
-    if (this.muted) return;
-    this.init();
-    const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(150, now);
-    osc.frequency.linearRampToValueAtTime(90, now + 0.25);
-    gain.gain.setValueAtTime(0.1, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
-    const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(400, now);
-    
-    osc.connect(filter);
-    filter.connect(gain);
-    gain.connect(this.ctx.destination);
-    
-    osc.start();
-    osc.stop(now + 0.3);
-  }
-  playLevelUp() {
-    if (this.muted) return;
-    this.init();
-    const now = this.ctx.currentTime;
-    const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
-    notes.forEach((f, i) => {
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(f, now + i * 0.06);
-      gain.gain.setValueAtTime(0.06, now + i * 0.06);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.2);
-      osc.connect(gain);
-      gain.connect(this.ctx.destination);
-      osc.start(now + i * 0.06);
-      osc.stop(now + i * 0.06 + 0.22);
-    });
-  }
-}
-
-const sfx = new SoundEffects();
-
-// Defined STAGES outside the component to preserve object references and prevent unintended resets on state updates.
-const STAGES = [
-  {
-    id: 'adipose',
-    title: 'שלב 1: מעבדת רקמת השומן',
-    subtitle: 'פענוח פתופיזיולוגיה תאית והיפרטרופיה',
-    icon: <Layers className="w-6 h-6 text-cyan-400" />,
-    bgGradient: 'from-blue-950 via-slate-900 to-indigo-950',
-    description: 'הבנת ההבדל בין השמנה תקינה להשמנה פתולוגית. רקמת שומן אינה רק מחסן אנרגיה פסיבי, אלא איבר אנדוקריני פעיל ומורכב ביותר.',
-    caseStudy: {
-      patient: 'רונית, בת 45',
-      symptoms: 'מדד BMI 31 ק"ג/מ"ר, היקף מותניים 94 ס"מ (שומן ויסרלי מוגבר). בדיקות דם מראות סימני דלקת תת-קלינית קלה.',
-      question: 'רונית שואלת: "מדוע הרופא אמר לי שהיקף המותניים שלי מדאיג יותר מאשר ה-BMI שלי?"'
-    },
-    tasks: [
-      {
-        type: 'sorting',
-        instruction: 'מיין את המאפיינים הבאים לשני מצבי רקמת השומן:',
-        categories: [
-          { id: 'visceral', title: 'שומן ויסרלי / היפרטרופיה פתולוגית (Malignant State)' },
-          { id: 'subcutaneous', title: 'שומן תת-עורי / היפרפלזיה תקינה (Benign State)' }
-        ],
-        items: [
-          { id: 'v1', text: 'שחרור מוגבר של חומצות שומן חופשיות (FFA) ישירות לוריד הפורטלי', category: 'visceral' },
-          { id: 's1', text: 'חלוקת תאים והתרבות מתונה (תאי שומן קטנים ורבים)', category: 'subcutaneous' },
-          { id: 'v2', text: 'מצב של היפוקסיה תאית, גיוס מקרופאגים מסוג M1 ויצירת מבני "כתר" (Crown-like)', category: 'visceral' },
-          { id: 's2', text: 'ייצור תקין של אדיפונקטין (הורמון המגן מפני עמידות לאינסולין)', category: 'subcutaneous' },
-          { id: 'v3', text: 'הפרשה מוגברת של ציטוקינים דלקתיים כמו TNF-α ו-IL-6', category: 'visceral' },
-          { id: 's3', text: 'אגירה בטוחה של עודפי טריגליצרידים ללא זליגה אקטופית לאיברים פנימיים', category: 'subcutaneous' }
-        ]
-      },
-      {
-        type: 'mcq',
-        question: 'איזה מהמנגנונים הבאים מסביר בצורה המדויקת ביותר את הקשר הישיר בין שומן ויסרלי מוגבר לבין התפתחות עמידות לאינסולין בכבד?',
-        options: [
-          { id: 'a', text: 'שומן ויסרלי מפעיל את מערכת העצבים הפארא-סימפתטית ובכך מפחית את שחרור הגלוקוז.', isCorrect: false },
-          { id: 'b', text: 'שומן ויסרלי מנקז חומצות שומן חופשיות (FFA) וציטוקינים דלקתיים ישירות למחזור הדם הפורטלי (השער) המגיע ישירות לכבד, מה שמשבש את סיגנל האינסולין בהפטוציטים.', isCorrect: true },
-          { id: 'c', text: 'שומן ויסרלי אינו מפריש חומצות שומן אלא רק אסטרוגן, המונע כניסת גלוקוז לתאי הכבד.', isCorrect: false },
-          { id: 'd', text: 'שומן ויסרלי גורם להפרשה מסיבית של אדיפונקטין, המעכב את תאי הלבלב.', isCorrect: false }
-        ],
-        explanation: 'מנגנון הניקוז הפורטלי (Portal Theory) מסביר כי חומצות שומן חופשיות וגורמי דלקת מרקמת השומן הויסרלית מגיעים ישירות לכבד ופוגעים ביכולתו להגיב לאינסולין.'
-      }
-    ]
-  },
-  {
-    id: 'hormones',
-    title: 'שלב 2: סנכרון ציר המוח-מעי',
-    subtitle: 'ויסות התיאבון, מאזן האנרגיה וגיל המעבר',
-    icon: <Brain className="w-6 h-6 text-purple-400" />,
-    bgGradient: 'from-slate-950 via-indigo-950 to-slate-900',
-    description: 'השמנה היא מצב כרוני עם מנגנוני פיצוי ביולוגיים חזקים. נלמד כיצד המוח (ההיפותלמוס) מתקשר עם מערכת העיכול ורקמת השומן, ומה משתנה דרמטית בגיל המעבר.',
-    caseStudy: {
-      patient: 'שרה, בת 52',
-      symptoms: 'מדווחת על עלייה פתאומית במשקל סביב הפסקת הווסת, בעיקר באזור הבטן. היא מתארת "קרייבינג" מוגבר למתוקים, ירידה ברמת האנרגיה במנוחה ותחושה ש"כל מה שהיא אוכלת הופך לשומן".',
-      question: 'שרה מתוסכלת: "אני אוכלת אותו דבר כמו בעבר ומתאמנת, אבל הבטן רק גדלה. מה השתנה ביולוגית בגוף שלי?"'
-    },
-    tasks: [
-      {
-        type: 'matching',
-        instruction: 'התאם בין ההורמון/המצב הפיזיולוגי לבין השפעתו ומקורו:',
-        left: [
-          { id: 'l1', text: 'לפטין (Leptin)' },
-          { id: 'l2', text: 'גרלין (Ghrelin)' },
-          { id: 'l3', text: 'GLP-1' },
-          { id: 'l4', text: 'ירידה באסטרוגן (במנופאוזה)' },
-          { id: 'l5', text: 'תנגודת ללפטין (Leptin Resistance)' }
-        ],
-        right: [
-          { id: 'r1', text: 'מופרש מתאי השומן, מאותת להיפותלמוס על שובע ומגביר הוצאה אנרגטית במצב תקין.' },
-          { id: 'r2', text: 'מופרש בעיקר מהקיבה במצב ריקנות, מעורר רעב ומאותת למוח לחפש מזון.' },
-          { id: 'r3', text: 'מופרש מתאי L במעי הדק לאחר האוכל, מגביר הפרשת אינסולין ומאט התרוקנות קיבה.' },
-          { id: 'r4', text: 'גורמת להסטת פיזור השומן מצורה נשית (אגס) לצורה בטנית (תפוח/ויסרלי) וירידה ב-REE.' },
-          { id: 'r5', text: 'המוח מפרש רמות גבוהות של לפטין כ"רעב ביולוגי" עקב פגיעה במעבר אותות, ומסרב להוריד תיאבון.' }
-        ],
-        pairs: { 'l1': 'r1', 'l2': 'r2', 'l3': 'r3', 'l4': 'r4', 'l5': 'r5' }
-      },
-      {
-        type: 'mcq',
-        question: 'כשמישהו מבצע הפחתה קלורית קיצונית בלבד, כיצד מגיבים מנגנוני הפיצוי ההורמונליים של הגוף?',
-        options: [
-          { id: 'a', text: 'רמת הלפטין עולה משמעותית כדי לעזור בדיכוי נוסף של התיאבון.', isCorrect: false },
-          { id: 'b', text: 'חילוף החומרים במנוחה (REE) עולה משמעותית כדי לשרוף שומן מהר יותר.', isCorrect: false },
-          { id: 'c', text: 'חלה ירידה בלפטין (הורמון השובע) ועלייה בגרלין (הורמון הרעב), יחד עם הפחתה אדפטיבית בהוצאה האנרגטית – מה שדוחף לעלייה חוזרת במשקל.', isCorrect: true },
-          { id: 'd', text: 'הגוף מפסיק להפריש אינסולין לחלוטין.', isCorrect: false }
-        ],
-        explanation: 'הגוף מגן על "נקודת שיווי המשקל" (Set Point) שלו באמצעות ירידה בצריכת האנרגיה והגברת תחושת הרעב כאשר יש גרעון קלורי.'
-      }
-    ]
-  },
-  {
-    id: 'three_m',
-    title: 'שלב 3: אבחון ה-3M וציר הפוריות',
-    subtitle: 'חלוקת תחלואות נלוות ומנגנון ה-PCOS',
-    icon: <Activity className="w-6 h-6 text-emerald-400" />,
-    bgGradient: 'from-teal-950 via-slate-900 to-emerald-950',
-    description: 'נעבור בין שלושת צירי הפגיעה העיקריים (מטבולי, מכני ומנטלי) ונבין את הקשר העמוק בין תנגודת לאינסולין להפרעות פוריות.',
-    caseStudy: {
-      patient: 'מאיה, בת 19',
-      symptoms: 'סובלת מעודף משקל (BMI 34), שיעור יתר בפנים, אקנה חמור, ושחלות פוליציסטיות (PCOS). בנוסף סובלת מכאבי ברכיים עקב עומס, ומתארת חרדה חברתית ודימוי גוף ירוד.',
-      question: 'מאיה שואלת: "איך המשקל שלי קשור להורמוני המין, לשחלות שלי ולדימוי העצמי שלי?"'
-    },
-    tasks: [
-      {
-        type: 'sorting',
-        instruction: 'סווג את סיבוכי האבחון לשלושת הציגים (מודל ה-3M):',
-        categories: [
-          { id: 'metabolic', title: 'תחלואה מטבולית (Metabolic)' },
-          { id: 'mechanical', title: 'תחלואה מכנית (Mechanical)' },
-          { id: 'mental', title: 'תחלואה מנטלית (Mental)' }
-        ],
-        items: [
-          { id: 'm1', text: 'כבד שומני (MASLD) ועלייה בטריגליצרידים', category: 'metabolic' },
-          { id: 'm2', text: 'אוסטיאוארטריטיס (שחיקת סחוס) במפרקי ברכיים וירכיים', category: 'mechanical' },
-          { id: 'm3', text: 'סטיגמה חברתית עצמית, דיכאון קליני והפרעות אכילה', category: 'mental' },
-          { id: 'm4', text: 'דום נשימה חסימתי בשינה (Obstructive Sleep Apnea)', category: 'mechanical' },
-          { id: 'm5', text: 'תנגודת לאינסולין וסוכרת מסוג 2', category: 'metabolic' },
-          { id: 'm6', text: 'דליפת שתן במאמץ (Urinary Incontinence)', category: 'mechanical' }
-        ]
-      },
-      {
-        type: 'mcq',
-        question: 'כיצד תנגודת לאינסולין ורמות אינסולין גבוהות (היפראינסולינמיה) משפיעות על השחלות וגורמות לייצור אנדרוגנים מוגבר ב-PCOS?',
-        options: [
-          { id: 'a', text: 'אינסולין מעודד ישירות את היפופיזה להפריש פחות LH ויותר פרוגסטרון.', isCorrect: false },
-          { id: 'b', text: 'האינסולין פועל ישירות על תאי התקה (Theca cells) בשחלה בשילוב עם LH, ומגביר את ייצור הטסטוסטרון. במקביל, הוא מפחית את ייצור החלבון SHBG בכבד, מה שמעלה את רמת הטסטוסטרון החופשי והפעיל.', isCorrect: true },
-          { id: 'c', text: 'אינסולין ממיס את זקיקי השחלה ובכך מונע ביוץ באופן מכני בלבד.', isCorrect: false },
-          { id: 'd', text: 'אינסולין מדכא את בלוטת התריס ובכך מונע הפרשת אסטרוגן.', isCorrect: false }
-        ],
-        explanation: 'שילוב זה של עירור ישיר של תאי התקה בשחלה לייצור אנדרוגנים, יחד עם דיכוי של נשא האנדרוגנים (SHBG) בכבד, מוביל להיפראנדרוגניזם קליני (אקנה, שיעור יתר) ואנובולציה.'
-      }
-    ]
-  },
-  {
-    id: 'treatment',
-    title: 'שלב 4: פיזיותרפיה, תזונה וטיפול תרופתי',
-    subtitle: 'מניעת סרקופניה ופענוח הטיפולים המודרניים',
-    icon: <Activity className="w-6 h-6 text-orange-400" />,
-    bgGradient: 'from-amber-950 via-slate-900 to-orange-950',
-    description: 'התערבות מודרנית דורשת טיפול משולב. נלמד על התאמת תרופות (GLP-1, GIP) ושמירה קריטית על מסת גוף רזה (Lean Body Mass) למניעת השמנה סרקופנית.',
-    caseStudy: {
-      patient: 'אברהם, בן 68',
-      symptoms: 'מטופל עם השמנה סוכרתית, מתחיל טיפול תרופתי ומתלונן על חולשת שרירים. חושש לאבד את היכולת לעלות במדרגות.',
-      question: 'הסימולטור דורש: "הירידה במשקל צריכה להיות איכותית. כיצד תגן על השריר מפני השמנה סרקופנית?"'
-    },
-    tasks: [
-      {
-        type: 'mcq',
-        question: 'מטופל השוקל 80 ק"ג עם עודף משקל וסוכרת מתחיל תוכנית הפחתת משקל. מהו יעד צריכת החלבון היומי המומלץ עבורו כדי לשמר מסת שריר אקטיבית?',
-        options: [
-          { id: 'a', text: 'בערך 40-50 גרם חלבון ביום (0.5 גרם לק"ג משקל גוף).', isCorrect: false },
-          { id: 'b', text: 'בין 96 ל-120 גרם חלבון ביום (חישוב לפי 1.2 עד 1.5 גרם חלבון לק"ג גוף).', isCorrect: true },
-          { id: 'c', text: 'ללא חלבון בכלל, רק פחמימות מורכבות.', isCorrect: false },
-          { id: 'd', text: 'מעל 300 גרם חלבון ביום.', isCorrect: false }
-        ],
-        explanation: 'צריכת חלבון מוגברת של 1.2-1.5 גרם לק"ג חיונית למניעת איבוד מסת שריר (Sarcopenia) במהלך ירידה במשקל בגיל המעבר ובגיל המבוגר.'
-      },
-      {
-        type: 'mcq',
-        question: 'מהו ההבדל במנגנון הפעולה בין התרופות: Semaglutide (ווגובי®) לעומת Tirzepatide (מונגרו®)?',
-        options: [
-          { id: 'a', text: 'Semaglutide פועלת על הורמוני בלוטת התריס בעוד Tirzepatide משפיעה על השרירים.', isCorrect: false },
-          { id: 'b', text: 'ווגובי (Semaglutide) פועלת כאגוניסט יחיד לקולטן של GLP-1 בלבד, בעוד מונגרו (Tirzepatide) היא אגוניסט כפול הן לקולטן ה-GLP-1 והן לקולטן ה-GIP, מה שמוביל ליעילות מטבולית גבוהה יותר.', isCorrect: true },
-          { id: 'c', text: 'מונגרו היא הורמון גדילה בעוד ווגובי היא חוסמת שומן במעי.', isCorrect: false },
-          { id: 'd', text: 'שתיהן פועלות רק על ידי הפחתת ספיגת הנוזלים בכליה.', isCorrect: false }
-        ],
-        explanation: 'Tirzepatide הינה מולקולה כפולת קולטנים (Dual GIP and GLP-1 Receptor Agonist) המציגה ירידה דרמטית במשקל לצד שיפור במדדים המטבוליים.'
-      },
-      {
-        type: 'mcq',
-        question: 'מהו סוג האימון הגופני הקריטי ביותר שיש להוסיף למטופל מבוגר עם השמנה סרקופנית (Sarcopenic Obesity) בנוסף לפעילות אירובית?',
-        options: [
-          { id: 'a', text: 'אימוני גמישות ומתיחות קלים בלבד.', isCorrect: false },
-          { id: 'b', text: 'אימוני התנגדות (Resistance Training) נושאי משקל עם עומס מתקדם, לגירוי סינתזת חלבון שריר ושמירה על צפיפות העצם.', isCorrect: true },
-          { id: 'c', text: 'ריצת מרתון ארוכה ללא מנוחה.', isCorrect: false },
-          { id: 'd', text: 'שכיבה ממושכת במיטה מתוחה.', isCorrect: false }
-        ],
-        explanation: 'אימוני התנגדות חיוניים לעירור פיזיולוגי מחדש של השריר, מניעת אובדן כוח תפקודי, ושמירה על מסת הגוף הרזה.'
-      }
-    ]
-  },
-  {
-    id: 'stigma',
-    title: 'שלב 5: מנפצי הסטיגמה החברתית',
-    subtitle: 'שינוי פרדיגמה וטיפול הוליסטי במחלה',
-    icon: <Shield className="w-6 h-6 text-rose-400" />,
-    bgGradient: 'from-rose-950 via-slate-900 to-indigo-950',
-    description: 'הבנה שהשמנה היא מצב ביולוגי מורכב, ולא "בעיה של כוח רצון". נלמד לנפץ את הסטיגמה המקובעת שמזיקה למטופלים.',
-    caseStudy: {
-      patient: 'נירה, בת 38',
-      symptoms: 'נמנעת מלהגיע לבדיקות תקופתיות במרפאה כי היא מרגישה שבכל פעם מאשימים אותה ומטיפים לה ש"היא פשוט צריכה לאכול פחות ולזוז יותר".',
-      question: 'כיצד נוכל לנפץ את המיתוסים המזיקים הללו בתוך השיח הטיפולי?'
-    },
-    tasks: [
-      {
-        type: 'stigma_game',
-        instruction: 'לפניך קביעות והתבטאויות. זהה אם מדובר ב"סטיגמה מזיקה ומיושנת" שיש לנפץ, או ב"אמת ביולוגית ומדעית" המבוססת על מנגנון פיזיולוגי:',
-        statements: [
-          { id: 'st1', text: '"השמנה נובעת מחוסר משמעת עצמית, עצלנות והיעדר כוח רצון של המטופל."', type: 'stigma', feedback: 'זוהי סטיגמה פוגענית ומיושנת! השמנה היא מחלה נוירו-הורמונלית כרונית עם בסיס גנטי חזק ומנגנוני הגנה פיזיולוגיים מפני ירידה במשקל.' },
-          { id: 'st2', text: '"השמנה היא מצב כרוני, פרוגרסיבית ונשנית הדורשת טיפול ממושך ומותאם אישית לטווח הארוך."', type: 'fact', feedback: 'מדויק! כיום ארגוני הבריאות המובילים מגדירים השמנה כמחלה כרונית רב-מערכתית ולא כמפגע אסתטי או כשל התנהגותי.' },
-          { id: 'st3', text: '"אם מטופל לא מצליח לרדת במשקל, זה פשוט בגלל שהוא לא סופר קלוריות כמו שצריך או מרמה בדיאטה."', type: 'stigma', feedback: 'ניפוץ! הגוף מפעיל התאמה תרמית אדפטיבית המורידה את חילוף החומרים בגלל ירידה בלפטין, מה שמקשה מאוד על ירידה מתמדת במשקל.' },
-          { id: 'st4', text: '"היחס השלילי והסטיגמטי של צוותים רפואיים למטופלים עם השמנה גורם להם להימנע מטיפולים ובדיקות סקר חיוניות."', type: 'fact', feedback: 'נכון מאוד ומצער. מחקרים מראים כי סטיגמה גורמת לדחיית טיפול, ירידה באמון במערכת ופגיעה קשה בבריאות המנטלית והפיזית.' },
-          { id: 'st5', text: '"השמנה בגיל המעבר קשורה רק לאורח חיים עצלן של נשים מבוגרות."', type: 'stigma', feedback: 'לא נכון! השינויים המטבוליים בגיל המעבר נגרמים מירידה ביולוגית באסטרוגן, המביאה לשינוי ישיר באיכות ופיזור רקמת השומן והפחתת שריפת האנרגיה במנוחה.' }
-        ]
-      }
-    ]
-  }
-];
-
-// Maximum score is computed as:
-// Stage 1: sorting verify (50) + mcq correct (40) = 90
-// Stage 2: matching (5 correct * 15 = 75) + mcq correct (40) = 115
-// Stage 3: sorting verify (50) + mcq correct (40) = 90
-// Stage 4: 3 mcq correct (3 * 40 = 120) = 120
-// Stage 5: stigma (5 correct * 25 = 125) = 125
-// Total MAX_SCORE = 540
-const MAX_SCORE = 540;
-
-export default function App() {
-  const [gameState, setGameState] = useState('welcome'); // welcome | playing | finished
-  const [currentStage, setCurrentStage] = useState(0);
-  const [score, setScore] = useState(0);
-  const [energy, setEnergy] = useState(100);
-  const [soundMuted, setSoundMuted] = useState(false);
-  const [userName, setUserName] = useState('');
-  const [stageProgress, setStageProgress] = useState([0, 0, 0, 0, 0]); // 0 = locked, 1 = active, 2 = completed
-  const [feedback, setFeedback] = useState(null); // { isCorrect: bool, text: string }
-  const [activeTaskIndex, setActiveTaskIndex] = useState(0);
-
-  // Sound toggling
-  const toggleMute = () => {
-    sfx.muted = !soundMuted;
-    setSoundMuted(!soundMuted);
-    sfx.playClick();
-  };
-
-  const handleStartGame = () => {
-    sfx.init();
-    sfx.playClick();
-    if (!userName.trim()) {
-      setUserName('חוקר מטבולי מוסמך');
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;600;700;800&display=swap');
+    body {
+      font-family: 'Assistant', sans-serif;
     }
-    setGameState('playing');
-    setCurrentStage(0);
-    setScore(0);
-    setEnergy(100);
-    setActiveTaskIndex(0);
-    setStageProgress([1, 0, 0, 0, 0]); // Stage 0 is active
-    setFeedback(null);
-  };
-
-  const currentStageData = STAGES[currentStage];
-  const currentTask = currentStageData?.tasks[activeTaskIndex];
-
-  // Logic for handling MCQ
-  const handleMCQAnswer = (selectedOption) => {
-    sfx.init();
-    if (feedback) return; // Prevent multiple clicks
-
-    const isCorrect = selectedOption.isCorrect;
-    if (isCorrect) {
-      sfx.playSuccess();
-      setScore(prev => prev + 40);
-      setFeedback({
-        isCorrect: true,
-        text: `כל הכבוד! תשובה נכונה. ${currentTask.explanation || ''}`
-      });
-    } else {
-      sfx.playError();
-      setEnergy(prev => Math.max(prev - 20, 0));
-      setFeedback({
-        isCorrect: false,
-        text: `תשובה לא מדויקת. ${currentTask.explanation || 'חשוב שוב על המנגנונים התאיים והפיזיולוגיים.'}`
-      });
+    .custom-glow {
+      box-shadow: 0 0 15px rgba(6, 182, 212, 0.15);
     }
-  };
-
-  // State for sorting task
-  const [sortingState, setSortingState] = useState({});
-
-  // Reset/Initialize sortingState only when stage or task indices actually change.
-  useEffect(() => {
-    if (currentTask?.type === 'sorting') {
-      const initial = {};
-      currentTask.items.forEach(item => {
-        initial[item.id] = null;
-      });
-      setSortingState(initial);
+    .custom-glow-hover:hover {
+      box-shadow: 0 0 25px rgba(6, 182, 212, 0.35);
     }
-  }, [currentStage, activeTaskIndex]);
+  </style>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased selection:bg-cyan-500 selection:text-slate-900 relative overflow-x-hidden">
 
-  const handleSortItem = (itemId, categoryId) => {
-    sfx.playClick();
-    setSortingState(prev => ({
-      ...prev,
-      [itemId]: categoryId
-    }));
-  };
+  <!-- Ambient Dynamic Background -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
+    <div class="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/10 blur-[120px]"></div>
+    <div class="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-cyan-900/10 blur-[150px]"></div>
+    <div class="absolute inset-0 opacity-5 mix-blend-overlay" style="background-image: radial-gradient(circle, #06B6D4 1px, transparent 1px); background-size: 24px 24px;"></div>
+  </div>
 
-  const handleVerifySorting = () => {
-    let allCorrect = true;
-    let correctCount = 0;
-    
-    currentTask.items.forEach(item => {
-      if (sortingState[item.id] === item.category) {
-        correctCount++;
-      } else {
-        allCorrect = false;
+  <!-- Header HUD -->
+  <header class="relative z-10 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="bg-gradient-to-tr from-cyan-500 to-indigo-500 p-2 rounded-xl shadow-lg shadow-cyan-500/20">
+          <svg class="w-6 h-6 text-slate-950 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-black tracking-tight bg-gradient-to-l from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
+            MetaboLex
+          </h1>
+          <span class="text-xs text-slate-400 font-medium block">הזירה האינטראקטיבית לחקר ההשמנה</span>
+        </div>
+      </div>
+
+      <!-- Live HUD stats -->
+      <div id="game-hud" class="hidden flex items-center gap-6">
+        <div class="hidden sm:flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg">
+          <svg class="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+          </svg>
+          <span class="text-xs text-slate-400 font-semibold">ניקוד מדעי:</span>
+          <span id="hud-score" class="text-sm font-black text-amber-300">0 XP</span>
+        </div>
+
+        <div class="flex items-center gap-3 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg">
+          <svg class="w-4 h-4 text-rose-500" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"></path>
+          </svg>
+          <div class="w-20 bg-slate-800 h-2 rounded-full overflow-hidden hidden xs:block">
+            <div id="energy-bar" class="h-full bg-emerald-500 transition-all duration-500" style="width: 100%;"></div>
+          </div>
+          <span id="hud-energy" class="text-xs font-bold text-slate-300">אנרגיה: 100%</span>
+        </div>
+      </div>
+
+      <!-- Mute Control -->
+      <button onclick="toggleMute()" class="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-cyan-400 transition-all">
+        <svg id="mute-icon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 18.75V5.25L7.75 9H4.5V15h3.25L12 18.75z"></path>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Area -->
+  <main class="relative z-10 max-w-6xl mx-auto px-4 py-8">
+
+    <!-- Screen 1: Welcome -->
+    <section id="screen-welcome" class="max-w-2xl mx-auto text-center mt-6 block">
+      <div class="inline-flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 px-4 py-1.5 rounded-full text-xs font-semibold mb-6 animate-pulse">
+        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+        סימולטור מטבולי אינטראקטיבי v2.0
+      </div>
+
+      <h2 class="text-4xl md:text-5xl font-black tracking-tight text-white mb-6 leading-tight">
+        ברוכים הבאים למסע המטבולי
+      </h2>
+
+      <p class="text-slate-300 text-base md:text-lg leading-relaxed mb-8">
+        היכנסו לתוך עולם מרתק של הדמיה ביולוגית וקלינית. במשחק זה תנווטו בין מסלולים הורמונליים, תתמודדו עם מקרים מורכבים בזמן אמת, ותבצעו דיאגנוזות תאיות בתוך מעבדות סימולציה מתקדמות. חוויה אינטראקטיבית מלאה המשלבת מדע, אסטרטגיה ופענוח מנגנוני גוף האדם.
+      </p>
+
+      <div class="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/40 border border-indigo-500/20 p-6 rounded-2xl mb-8 text-right shadow-xl">
+        <h3 class="text-md font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
+          <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+          </svg>
+          מתווה המשימות בסימולציה שלפניך:
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-400">
+          <div class="flex items-start gap-2.5">
+            <div class="w-1.5 h-1.5 bg-cyan-400 rounded-full mt-2 shrink-0"></div>
+            <div>
+              <span class="font-bold text-slate-200 block">מעבדת רקמת השומן</span>
+              <span class="text-xs text-slate-400">אבחון פתופיזיולוגי של היפרטרופיה תאית והיפוקסיה.</span>
+            </div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <div class="w-1.5 h-1.5 bg-cyan-400 rounded-full mt-2 shrink-0"></div>
+            <div>
+              <span class="font-bold text-slate-200 block">ויסות נוירו-אנדוקריני</span>
+              <span class="text-xs text-slate-400">סנכרון ציר המוח-מעי וקשר אסטרוגני-לפטיני.</span>
+            </div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-2 shrink-0"></div>
+            <div>
+              <span class="font-bold text-slate-200 block">מודל ה-3M וציר הפוריות</span>
+              <span class="text-xs text-slate-400">סיבוכים מטבוליים, מכניים ומנטליים בתיקים רפואיים.</span>
+            </div>
+          </div>
+          <div class="flex items-start gap-2.5">
+            <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-2 shrink-0"></div>
+            <div>
+              <span class="font-bold text-slate-200 block">מניעת השמנה סרקופנית</span>
+              <span class="text-xs text-slate-400">שילוב אגוניסטים תרופתיים חדשים לצד אימוני כוח.</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="max-w-md mx-auto bg-slate-900/80 p-6 rounded-xl border border-slate-800 mb-8">
+        <label class="block text-sm font-semibold text-slate-300 mb-2 text-right">הזן את שמך לזיהוי במערכת המטבולית:</label>
+        <input 
+          type="text" 
+          id="username-input"
+          placeholder="למשל: ד״ר דניאל / מפענח מטבולי"
+          class="w-full bg-slate-950 border border-slate-700/80 px-4 py-3 rounded-lg text-slate-100 focus:outline-none focus:border-cyan-400 text-center transition-colors font-medium"
+        />
+      </div>
+
+      <button 
+        onclick="startGame()"
+        class="group inline-flex items-center gap-3 bg-gradient-to-r from-cyan-500 to-indigo-600 text-slate-950 font-black px-8 py-4 rounded-xl text-lg hover:from-cyan-400 hover:to-indigo-500 transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/35 transform hover:-translate-y-0.5 active:translate-y-0"
+      >
+        הפעל את הסימולציה המטבולית
+        <svg class="w-5 h-5 fill-current text-slate-950" viewBox="0 0 20 20">
+          <path d="M4.516 3.248a.5.5 0 01.76-.421l11.516 6.326a.5.5 0 010 .843L5.275 16.321a.5.5 0 01-.76-.421V3.248z"></path>
+        </svg>
+      </button>
+    </section>
+
+    <!-- Screen 2: Playing -->
+    <section id="screen-playing" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-start relative z-10">
+      
+      <!-- Right Map Sidebar -->
+      <div class="lg:col-span-3 bg-slate-900/60 border border-slate-800/80 p-4 rounded-2xl backdrop-blur-md">
+        <h3 class="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4 text-right">מפת שלבי המסע</h3>
+        <div id="stages-map" class="space-y-3">
+          <!-- Dynamically Rendered -->
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-slate-800 text-right">
+          <span class="text-xs text-slate-400">שלב פעיל:</span>
+          <p id="active-stage-label" class="text-sm font-bold text-slate-200">1 מתוך 5</p>
+          <div class="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+            <div id="stages-bar" class="bg-indigo-500 h-full transition-all duration-500" style="width: 20%;"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Game Column -->
+      <div class="lg:col-span-9 space-y-6">
+        
+        <!-- Stage Info Header Card -->
+        <div class="bg-gradient-to-r from-slate-900 via-slate-950 to-indigo-950/80 border border-slate-800/80 p-6 rounded-2xl relative overflow-hidden shadow-xl">
+          <div class="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none"></div>
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <span id="stage-badge" class="text-xs font-black text-indigo-400 tracking-widest uppercase">שלב 1</span>
+              <h2 id="stage-title" class="text-2xl font-black text-white mt-1">כותרת שלב</h2>
+              <p id="stage-subtitle" class="text-sm text-slate-300 mt-1">תת כותרת</p>
+            </div>
+            <div class="flex items-center gap-2 bg-slate-900/80 border border-slate-800/80 px-3 py-1.5 rounded-xl self-start sm:self-center">
+              <svg class="w-4 h-4 text-cyan-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+              </svg>
+              <span id="task-badge" class="text-xs font-medium text-slate-400">תת-משימה 1 מתוך 2</span>
+            </div>
+          </div>
+          <p id="stage-desc" class="text-sm text-slate-400 mt-4 leading-relaxed bg-slate-900/40 p-3 rounded-xl border border-slate-800/30">
+            תיאור השלב הנוכחי
+          </p>
+        </div>
+
+        <!-- Case Study Panel -->
+        <div class="bg-gradient-to-l from-indigo-950/40 to-slate-900/90 border border-indigo-500/15 p-5 rounded-2xl relative">
+          <div class="absolute top-3 left-4 bg-indigo-500/10 text-indigo-300 text-[10px] font-bold px-2.5 py-1 rounded-full border border-indigo-500/20">
+            תיק מקרה בסימולציה
+          </div>
+          <h3 id="patient-name" class="text-sm font-bold text-slate-200 mb-2 flex items-center gap-2">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+            </svg>
+            מטופל וירטואלי:
+          </h3>
+          <p id="patient-symptoms" class="text-xs text-slate-300 leading-relaxed mb-3">
+            תסמינים...
+          </p>
+          <div id="patient-question" class="bg-slate-950/60 p-3 rounded-lg border border-slate-800/50 text-xs italic text-cyan-300/90 leading-relaxed">
+            שאלה...
+          </div>
+        </div>
+
+        <!-- Interactive Playground -->
+        <div class="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 min-h-[300px] flex flex-col justify-between shadow-2xl relative">
+          
+          <!-- Energy Failure State -->
+          <div id="energy-failure" class="hidden text-center py-12">
+            <svg class="w-16 h-16 text-rose-500 mx-auto mb-4 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            <h3 class="text-xl font-black text-white">אנרגיית המערכת אזלה!</h3>
+            <p class="text-slate-400 mt-2 text-sm max-w-md mx-auto">
+              שיווי המשקל המטבולי נפגע. השתמש בידע שצברת כדי לארגן מחדש את האסטרטגיה הקלינית.
+            </p>
+            <button onclick="retryStage()" class="mt-6 inline-flex items-center gap-2 bg-indigo-500 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-indigo-600 transition-colors">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H19M9 5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+              אתחל שלב זה מחדש
+            </button>
+          </div>
+
+          <!-- Dynamic Task Render Workspace -->
+          <div id="task-workspace" class="block">
+            <!-- Programmatically injected based on task type -->
+          </div>
+
+          <!-- Alert / Feedback Panel -->
+          <div id="feedback-panel" class="hidden mt-6 p-5 rounded-2xl text-right transition-all border">
+            <div class="flex items-start gap-3">
+              <div id="feedback-icon" class="shrink-0 mt-0.5"></div>
+              <div>
+                <h5 id="feedback-title" class="font-black text-sm">ניתוח מדעי</h5>
+                <p id="feedback-desc" class="text-xs mt-1 leading-relaxed">תיאור פירוט המשוב...</p>
+              </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-4 border-t border-slate-800 pt-3">
+              <button id="feedback-retry-btn" onclick="retryStage()" class="hidden text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-lg font-bold text-slate-300 transition-colors">
+                נסה שוב משימה זו
+              </button>
+              <button id="feedback-next-btn" onclick="nextTask()" class="text-xs bg-gradient-to-l from-cyan-500 to-indigo-600 text-slate-950 hover:from-cyan-400 hover:to-indigo-500 px-5 py-2 rounded-lg font-black transition-all flex items-center gap-1.5">
+                <span>המשך לשלב הבא במסע</span>
+                <svg class="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </button>
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Screen 3: Finish/Completed -->
+    <section id="screen-finished" class="hidden max-w-3xl mx-auto text-center py-6">
+      <div class="inline-flex p-4 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 shadow-xl shadow-yellow-500/20 mb-6">
+        <svg class="w-14 h-14 text-slate-950 animate-bounce" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path>
+        </svg>
+      </div>
+
+      <h2 class="text-3xl md:text-4xl font-black text-white leading-tight">
+        כל הכבוד, <span id="finished-username" class="text-cyan-400">חוקר</span>!<br>
+        <span class="bg-gradient-to-l from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">השלמת בהצלחה את המסע המטבולי!</span>
+      </h2>
+
+      <p class="text-slate-300 text-sm md:text-base mt-4 max-w-xl mx-auto leading-relaxed">
+        ניווטת בהצלחה בין כל האתגרים והמכשולים הביולוגיים: פיענחת את מאפייני רקמת השומן הויסרלית, סנכרנת את ההורמונים, חילקת את סיבוכי ה-3M, הגנת על מסת השריר מפני סרקופניה וניפצת את הסטיגמות.
+      </p>
+
+      <div class="grid grid-cols-2 gap-4 max-w-md mx-auto my-8">
+        <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-xl text-center">
+          <span class="text-xs text-slate-400 block font-semibold">ציון מטבולי סופי</span>
+          <span id="final-percentage" class="text-2xl font-black text-cyan-400 mt-1 block">0%</span>
+        </div>
+        <div class="bg-slate-900/80 border border-slate-800 p-4 rounded-xl text-center">
+          <span class="text-xs text-slate-400 block font-semibold">דירוג קליני</span>
+          <span id="final-ranking" class="text-2xl font-black text-indigo-400 mt-1 block">מפענח מטבולי</span>
+        </div>
+      </div>
+
+      <!-- Certificate of Completion -->
+      <div class="bg-gradient-to-b from-slate-900 to-indigo-950/80 border-4 border-double border-indigo-500/40 p-8 rounded-3xl max-w-xl mx-auto my-8 relative shadow-2xl overflow-hidden text-right">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="text-center border-b border-indigo-500/20 pb-4 mb-6">
+          <h3 class="text-xs font-black text-indigo-400 tracking-widest uppercase">אישור סיום סימולציה</h3>
+          <h4 class="text-xl font-black text-slate-100 mt-1">MetaboLex: מפענח מערכות מטבוליות מורכבות</h4>
+        </div>
+
+        <p class="text-sm text-slate-300 leading-relaxed mb-6">
+          אישור זה מוענק בזאת ל- <strong id="certificate-name" class="text-cyan-300 text-base">שם</strong>, אשר פתר בהצטיינות את מבוכי הסימולציה בציון סופי מדהים של <strong id="certificate-percentage" class="text-emerald-400 text-base">0%</strong>, פיענח את התקשורת הבין-תאית וההורמונלית, והראה הבנה עמוקה של פיזיולוגיית גוף האדם, שימור מסת השריר ויצירת סביבה טיפולית רגישה ומקצועית.
+        </p>
+
+        <div class="flex justify-between items-end pt-4 border-t border-indigo-500/20 text-xs text-slate-400">
+          <div>
+            <p class="font-semibold text-slate-300">תאריך סיום המסע:</p>
+            <p id="certificate-date" class="font-mono text-cyan-400/90">00.00.0000</p>
+          </div>
+          <div class="text-center">
+            <div class="w-10 h-10 mx-auto mb-1 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+              <svg class="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+              </svg>
+            </div>
+            <p class="text-[10px] font-black text-slate-300">חותמת מוסמך MetaboLex</p>
+          </div>
+        </div>
+      </div>
+
+      <button onclick="resetGame()" class="inline-flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-600 text-slate-950 font-black px-6 py-3 rounded-xl hover:from-cyan-400 hover:to-indigo-500 transition-all shadow-lg">
+        <svg class="w-4 h-4 text-slate-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 15H19M9 5a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+        הפעל מחדש את הסימולציה
+      </button>
+    </section>
+
+  </main>
+
+  <footer class="relative z-10 border-t border-slate-900 mt-16 py-6 bg-slate-950 text-center text-[11px] text-slate-500">
+    <p class="max-w-2xl mx-auto px-4 leading-relaxed">
+      MetaboLex סימולטור מטבולי אינטראקטיבי מתקדם v2.0 - נבנה לחוויית גילוי חוקרת ומבוססת מנגנונים פיזיולוגיים וקליניים.
+    </p>
+  </footer>
+
+  <!-- Application Logic & Sound Engine -->
+  <script>
+    // Sound FX Synthesis Engine via Web Audio API
+    class SoundEffects {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
       }
-    });
-
-    if (allCorrect) {
-      sfx.playSuccess();
-      setScore(prev => prev + 50);
-      setFeedback({
-        isCorrect: true,
-        text: 'מצוין! סיווגת את כל המאפיינים למקום הנכון בצורה מושלמת!'
-      });
-    } else {
-      sfx.playError();
-      setEnergy(prev => Math.max(prev - 15, 0));
-      setFeedback({
-        isCorrect: false,
-        text: `חלק מהסיווגים אינם נכונים (${correctCount}/${currentTask.items.length} נכונים). נתח מחדש את ההבדלים בין פעילות השומן הויסרלי לשומן התת-עורי.`
-      });
-    }
-  };
-
-  // State for matching task
-  const [matchingSelections, setMatchingSelections] = useState({ left: null, right: null });
-  const [matchedPairs, setMatchedPairs] = useState({}); // Stores correct matches
-  
-  const handleSelectMatch = (side, id) => {
-    sfx.playClick();
-    const newSelections = { ...matchingSelections, [side]: id };
-    
-    if (newSelections.left && newSelections.right) {
-      const expectedRight = currentTask.pairs[newSelections.left];
-      if (expectedRight === newSelections.right) {
-        sfx.playSuccess();
-        setMatchedPairs(prev => ({ ...prev, [newSelections.left]: newSelections.right }));
-        setScore(prev => prev + 15);
-        setMatchingSelections({ left: null, right: null });
-      } else {
-        sfx.playError();
-        setEnergy(prev => Math.max(prev - 10, 0));
-        setMatchingSelections({ left: null, right: null });
+      init() {
+        if (!this.ctx) {
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
       }
-    } else {
-      setMatchingSelections(newSelections);
-    }
-  };
-
-  // Verify matching completed
-  useEffect(() => {
-    if (currentTask?.type === 'matching') {
-      const totalPairsNeeded = Object.keys(currentTask.pairs).length;
-      if (Object.keys(matchedPairs).length === totalPairsNeeded && totalPairsNeeded > 0) {
-        setFeedback({
-          isCorrect: true,
-          text: 'כל הכבוד! קישרת נכון את כל ההורמונים והשינויים לציר המקביל להם!'
+      playClick() {
+        if (this.muted) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.1);
+      }
+      playSuccess() {
+        if (this.muted) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const freqs = [523.25, 659.25, 783.99];
+        freqs.forEach((f, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(f, now + i * 0.05);
+          gain.gain.setValueAtTime(0, now);
+          gain.gain.linearRampToValueAtTime(0.08, now + i * 0.05 + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.05 + 0.3);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + i * 0.05);
+          osc.stop(now + i * 0.05 + 0.35);
+        });
+      }
+      playError() {
+        if (this.muted) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.linearRampToValueAtTime(90, now + 0.25);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400, now);
+        osc.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(now + 0.3);
+      }
+      playLevelUp() {
+        if (this.muted) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const notes = [261.63, 329.63, 392.00, 523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((f, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(f, now + i * 0.06);
+          gain.gain.setValueAtTime(0.06, now + i * 0.06);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.06 + 0.2);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + i * 0.06);
+          osc.stop(now + i * 0.06 + 0.22);
         });
       }
     }
-  }, [matchedPairs, currentTask]);
 
-  // Reset matching on active task change
-  useEffect(() => {
-    setMatchedPairs({});
-    setMatchingSelections({ left: null, right: null });
-  }, [currentStage, activeTaskIndex]);
+    const sfx = new SoundEffects();
 
-  // Stigma interactive mini-game
-  const [currentStigmaIndex, setCurrentStigmaIndex] = useState(0);
-  const [stigmaCompleted, setStigmaCompleted] = useState(false);
-  const [stigmaFeedback, setStigmaFeedback] = useState(null);
+    // Data definition matches previously completed content
+    const STAGES = [
+      {
+        id: 'adipose',
+        title: 'שלב 1: מעבדת רקמת השומן',
+        subtitle: 'פענוח פתופיזיולוגיה תאית והיפרטרופיה',
+        icon: `<svg class="w-6 h-6 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>`,
+        description: 'הבנת ההבדל בין השמנה תקינה להשמנה פתולוגית. רקמת שומן אינה רק מחסן אנרגיה פסיבי, אלא איבר אנדוקריני פעיל ומורכב ביותר.',
+        caseStudy: {
+          patient: 'רונית, בת 45',
+          symptoms: 'מדד BMI 31 ק"ג/מ"ר, היקף מותניים 94 ס"מ (שומן ויסרלי מוגבר). בדיקות דם מראות סימני דלקת תת-קלינית קלה.',
+          question: 'רונית שואלת: "מדוע הרופא אמר לי שהיקף המותניים שלי מדאיג יותר מאשר ה-BMI שלי?"'
+        },
+        tasks: [
+          {
+            type: 'sorting',
+            instruction: 'מיין את המאפיינים הבאים לשני מצבי רקמת השומן:',
+            categories: [
+              { id: 'visceral', title: 'שומן ויסרלי / היפרטרופיה פתולוגית' },
+              { id: 'subcutaneous', title: 'שומן תת-עורי / היפרפלזיה תקינה' }
+            ],
+            items: [
+              { id: 'v1', text: 'שחרור מוגבר של חומצות שומן חופשיות (FFA) ישירות לוריד הפורטלי', category: 'visceral' },
+              { id: 's1', text: 'חלוקת תאים והתרבות מתונה (תאי שומן קטנים ורבים)', category: 'subcutaneous' },
+              { id: 'v2', text: 'מצב של היפוקסיה תאית, גיוס מקרופאגים מסוג M1 ויצירת מבני "כתר" (Crown-like)', category: 'visceral' },
+              { id: 's2', text: 'ייצור תקין של אדיפונקטין (הורמון המגן מפני עמידות לאינסולין)', category: 'subcutaneous' },
+              { id: 'v3', text: 'הפרשה מוגברת של ציטוקינים דלקתיים כמו TNF-α ו-IL-6', category: 'visceral' },
+              { id: 's3', text: 'אגירה בטוחה של עודפי טריגליצרידים ללא זליגה אקטופית לאיברים פנימיים', category: 'subcutaneous' }
+            ]
+          },
+          {
+            type: 'mcq',
+            question: 'איזה מהמנגנונים הבאים מסביר בצורה המדויקת ביותר את הקשר הישיר בין שומן ויסרלי מוגבר לבין התפתחות עמידות לאינסולין בכבד?',
+            options: [
+              { id: 'a', text: 'שומן ויסרלי מפעיל את מערכת העצבים הפארא-סימפתטית ובכך מפחית את שחרור הגלוקוז.', isCorrect: false },
+              { id: 'b', text: 'שומן ויסרלי מנקז חומצות שומן חופשיות (FFA) וציטוקינים דלקתיים ישירות למחזור הדם הפורטלי (השער) המגיע ישירות לכבד, מה שמשבש את סיגנל האינסולין בהפטוציטים.', isCorrect: true },
+              { id: 'c', text: 'שומן ויסרלי אינו מפריש חומצות שומן אלא רק אסטרוגן, המונע כניסת גלוקוז לתאי הכבד.', isCorrect: false },
+              { id: 'd', text: 'שומן ויסרלי גורם להפרשה מסיבית של אדיפונקטין, המעכב את תאי הלבלב.', isCorrect: false }
+            ],
+            explanation: 'מנגנון הניקוז הפורטלי (Portal Theory) מסביר כי חומצות שומן חופשיות וגורמי דלקת מרקמת השומן הויסרלית מגיעים ישירות לכבד ופוגעים ביכולתו להגיב לאינסולין.'
+          }
+        ]
+      },
+      {
+        id: 'hormones',
+        title: 'שלב 2: סנכרון ציר המוח-מעי',
+        subtitle: 'ויסות התיאבון, מאזן האנרגיה וגיל המעבר',
+        icon: `<svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path></svg>`,
+        description: 'השמנה היא מצב כרוני עם מנגנוני פיצוי ביולוגיים חזקים. נלמד כיצד המוח (ההיפותלמוס) מתקשר עם מערכת העיכול ורקמת השומן, ומה משתנה דרמטית בגיל המעבר.',
+        caseStudy: {
+          patient: 'שרה, בת 52',
+          symptoms: 'מדווחת על עלייה פתאומית במשקל סביב הפסקת הווסת, בעיקר באזור הבטן. היא מתארת "קרייבינג" מוגבר למתוקים, ירידה ברמת האנרגיה במנוחה ותחושה ש"כל מה שהיא אוכלת הופך לשומן".',
+          question: 'שרה מתוסכלת: "אני אוכלת אותו דבר כמו בעבר ומתאמנת, אבל הבטן רק גדלה. מה השתנה ביולוגית בגוף שלי?"'
+        },
+        tasks: [
+          {
+            type: 'matching',
+            instruction: 'התאם בין ההורמון/המצב הפיזיולוגי לבין השפעתו ומקורו:',
+            left: [
+              { id: 'l1', text: 'לפטין (Leptin)' },
+              { id: 'l2', text: 'גרלין (Ghrelin)' },
+              { id: 'l3', text: 'GLP-1' },
+              { id: 'l4', text: 'ירידה באסטרוגן (במנופאוזה)' },
+              { id: 'l5', text: 'תנגודת ללפטין (Leptin Resistance)' }
+            ],
+            right: [
+              { id: 'r1', text: 'מופרש מתאי השומן, מאותת להיפותלמוס על שובע ומגביר הוצאה אנרגטית במצב תקין.' },
+              { id: 'r2', text: 'מופרש בעיקר מהקיבה במצב ריקנות, מעורר רעב ומאותת למוח לחפש מזון.' },
+              { id: 'r3', text: 'מופרש מתאי L במעי הדק לאחר האוכל, מגביר הפרשת אינסולין ומאט התרוקנות קיבה.' },
+              { id: 'r4', text: 'גורמת להסטת פיזור השומן מצורה נשית (אגס) לצורה בטנית (תפוח/ויסרלי) וירידה ב-REE.' },
+              { id: 'r5', text: 'המוח מפרש רמות גבוהות של לפטין כ"רעב ביולוגי" עקב פגיעה במעבר אותות, ומסרב להוריד תיאבון.' }
+            ],
+            pairs: { 'l1': 'r1', 'l2': 'r2', 'l3': 'r3', 'l4': 'r4', 'l5': 'r5' }
+          },
+          {
+            type: 'mcq',
+            question: 'כשמישהו מבצע הפחתה קלורית קיצונית בלבד, כיצד מגיבים מנגנוני הפיצוי ההורמונליים של הגוף?',
+            options: [
+              { id: 'a', text: 'רמת הלפטין עולה משמעותית כדי לעזור בדיכוי נוסף של התיאבון.', isCorrect: false },
+              { id: 'b', text: 'חילוף החומרים במנוחה (REE) עולה משמעותית כדי לשרוף שומן מהר יותר.', isCorrect: false },
+              { id: 'c', text: 'חלה ירידה בלפטין (הורמון השובע) ועלייה בגרלין (הורמון הרעב), יחד עם הפחתה אדפטיבית בהוצאה האנרגטית – מה שדוחף לעלייה חוזרת במשקל.', isCorrect: true },
+              { id: 'd', text: 'הגוף מפסיק להפריש אינסולין לחלוטין.', isCorrect: false }
+            ],
+            explanation: 'הגוף מגן על "נקודת שיווי המשקל" (Set Point) שלו באמצעות ירידה בצריכת האנרגיה והגברת תחושת הרעב כאשר יש גרעון קלורי.'
+          }
+        ]
+      },
+      {
+        id: 'three_m',
+        title: 'שלב 3: אבחון ה-3M וציר הפוריות',
+        subtitle: 'חלוקת תחלואות נלוות ומנגנון ה-PCOS',
+        icon: `<svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 8v8m-4-5v5m-4-2v2M2 12h20M2 6h20M2 18h20"></path></svg>`,
+        description: 'נעבור בין שלושת צירי הפגיעה העיקריים (מטבולי, מכני ומנטלי) ונבין את הקשר העמוק בין תנגודת לאינסולין להפרעות פוריות.',
+        caseStudy: {
+          patient: 'מאיה, בת 19',
+          symptoms: 'סובלת מעודף משקל (BMI 34), שיעור יתר בפנים, אקנה חמור, ושחלות פוליציסטיות (PCOS). בנוסף סובלת מכאבי ברכיים עקב עומס, ומתארת חרדה חברתית ודימוי גוף ירוד.',
+          question: 'מאיה שואלת: "איך המשקל שלי קשור להורמוני המין, לשחלות שלי ולדימוי העצמי שלי?"'
+        },
+        tasks: [
+          {
+            type: 'sorting',
+            instruction: 'סווג את סיבוכי האבחון לשלושת הציגים (מודל ה-3M):',
+            categories: [
+              { id: 'metabolic', title: 'תחלואה מטבולית (Metabolic)' },
+              { id: 'mechanical', title: 'תחלואה מכנית (Mechanical)' },
+              { id: 'mental', title: 'תחלואה מנטלית (Mental)' }
+            ],
+            items: [
+              { id: 'm1', text: 'כבד שומני (MASLD) ועלייה בטריגליצרידים', category: 'metabolic' },
+              { id: 'm2', text: 'אוסטיאוארטריטיס (שחיקת סחוס) במפרקי ברכיים וירכיים', category: 'mechanical' },
+              { id: 'm3', text: 'סטיגמה חברתית עצמית, דיכאון קליני והפרעות אכילה', category: 'mental' },
+              { id: 'm4', text: 'דום נשימה חסימתי בשינה (Obstructive Sleep Apnea)', category: 'mechanical' },
+              { id: 'm5', text: 'תנגודת לאינסולין וסוכרת מסוג 2', category: 'metabolic' },
+              { id: 'm6', text: 'דליפת שתן במאמץ (Urinary Incontinence)', category: 'mechanical' }
+            ]
+          },
+          {
+            type: 'mcq',
+            question: 'כיצד תנגודת לאינסולין ורמות אינסולין גבוהות (היפראינסולינמיה) משפיעות על השחלות וגורמות לייצור אנדרוגנים מוגבר ב-PCOS?',
+            options: [
+              { id: 'a', text: 'אינסולין מעודד ישירות את היפופיזה להפריש פחות LH ויותר פרוגסטרון.', isCorrect: false },
+              { id: 'b', text: 'האינסולין פועל ישירות על תאי התקה (Theca cells) בשחלה בשילוב עם LH, ומגביר את ייצור הטסטוסטרון. במקביל, הוא מפחית את ייצור החלבון SHBG בכבד, מה שמעלה את רמת הטסטוסטרון החופשי והפעיל.', isCorrect: true },
+              { id: 'c', text: 'אינסולין ממיס את זקיקי השחלה ובכך מונע ביוץ באופן מכני בלבד.', isCorrect: false },
+              { id: 'd', text: 'אינסולין מדכא את בלוטת התריס ובכך מונע הפרשת אסטרוגן.', isCorrect: false }
+            ],
+            explanation: 'שילוב זה של עירור ישיר של תאי התקה בשחלה לייצור אנדרוגנים, יחד עם דיכוי של נשא האנדרוגנים (SHBG) בכבד, מוביל להיפראנדרוגניזם קליני (אקנה, שיעור יתר) ואנובולציה.'
+          }
+        ]
+      },
+      {
+        id: 'treatment',
+        title: 'שלב 4: פיזיותרפיה, תזונה וטיפול תרופתי',
+        subtitle: 'מניעת סרקופניה ופענוח הטיפולים המודרניים',
+        icon: `<svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+        description: 'התערבות מודרנית דורשת טיפול משולב. נלמד על התאמת תרופות (GLP-1, GIP) ושמירה קריטית על מסת גוף רזה (Lean Body Mass) למניעת השמנה סרקופנית.',
+        caseStudy: {
+          patient: 'אברהם, בן 68',
+          symptoms: 'מטופל עם השמנה סוכרתית, מתחיל טיפול תרופתי ומתלונן על חולשת שרירים. חושש לאבד את היכולת לעלות במדרגות.',
+          question: 'הסימולטור דורש: "הירידה במשקל צריכה להיות איכותית. כיצד תגן על השריר מפני השמנה סרקופנית?"'
+        },
+        tasks: [
+          {
+            type: 'mcq',
+            question: 'מטופל השוקל 80 ק"ג עם עודף משקל וסוכרת מתחיל תוכנית הפחתת משקל. מהו יעד צריכת החלבון היומי המומלץ עבורו כדי לשמר מסת שריר אקטיבית?',
+            options: [
+              { id: 'a', text: 'בערך 40-50 גרם חלבון ביום (0.5 גרם לק"ג משקל גוף).', isCorrect: false },
+              { id: 'b', text: 'בין 96 ל-120 גרם חלבון ביום (חישוב לפי 1.2 עד 1.5 גרם חלבון לק"ג גוף).', isCorrect: true },
+              { id: 'c', text: 'ללא חלבון בכלל, רק פחמימות מורכבות.', isCorrect: false },
+              { id: 'd', text: 'מעל 300 גרם חלבון ביום.', isCorrect: false }
+            ],
+            explanation: 'צריכת חלבון מוגברת של 1.2-1.5 גרם לק"ג חיונית למניעת איבוד מסת שריר (Sarcopenia) במהלך ירידה במשקל בגיל המעבר ובגיל המבוגר.'
+          },
+          {
+            type: 'mcq',
+            question: 'מהו ההבדל במנגנון הפעולה בין התרופות: Semaglutide (ווגובי®) לעומת Tirzepatide (מונגרו®)?',
+            options: [
+              { id: 'a', text: 'Semaglutide פועלת על הורמוני בלוטת התריס בעוד Tirzepatide משפיעה על השרירים.', isCorrect: false },
+              { id: 'b', text: 'ווגובי (Semaglutide) פועלת כאגוניסט יחיד לקולטן של GLP-1 בלבד, בעוד מונגרו (Tirzepatide) היא אגוניסט כפול הן לקולטן ה-GLP-1 והן לקולטן ה-GIP, מה שמוביל ליעילות מטבולית גבוהה יותר.', isCorrect: true },
+              { id: 'c', text: 'מונגרו היא הורמון גדילה בעוד ווגובי היא חוסמת שומן במעי.', isCorrect: false },
+              { id: 'd', text: 'שתיהן פועלות רק על ידי הפחתת ספיגת הנוזלים בכליה.', isCorrect: false }
+            ],
+            explanation: 'Tirzepatide הינה מולקולה כפולת קולטנים (Dual GIP and GLP-1 Receptor Agonist) המציגה ירידה דרמטית במשקל לצד שיפור במדדים המטבוליים.'
+          },
+          {
+            type: 'mcq',
+            question: 'מהו סוג האימון הגופני הקריטי ביותר שיש להוסיף למטופל מבוגר עם השמנה סרקופנית (Sarcopenic Obesity) בנוסף לפעילות אירובית?',
+            options: [
+              { id: 'a', text: 'אימוני גמישות ומתיחות קלים בלבד.', isCorrect: false },
+              { id: 'b', text: 'אימוני התנגדות (Resistance Training) נושאי משקל עם עומס מתקדם, לגירוי סינתזת חלבון שריר ושמירה על צפיפות העצם.', isCorrect: true },
+              { id: 'c', text: 'ריצת מרתון ארוכה ללא מנוחה.', isCorrect: false },
+              { id: 'd', text: 'שכיבה ממושכת במיטה מתוחה.', isCorrect: false }
+            ],
+            explanation: 'אימוני התנגדות חיוניים לעירור פיזיולוגי מחדש של השריר, מניעת אובדן כוח תפקודי, ושמירה על מסת הגוף הרזה.'
+          }
+        ]
+      },
+      {
+        id: 'stigma',
+        title: 'שלב 5: מנפצי הסטיגמה החברתית',
+        subtitle: 'שינוי פרדיגמה וטיפול הוליסטי במחלה',
+        icon: `<svg class="w-6 h-6 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>`,
+        description: 'הבנה שהשמנה היא מצב ביולוגי מורכב, ולא "בעיה של כוח רצון". נלמד לנפץ את הסטיגמה המקובעת שמזיקה למטופלים.',
+        caseStudy: {
+          patient: 'נירה, בת 38',
+          symptoms: 'נמנעת מלהגיע לבדיקות תקופתיות במרפאה כי היא מרגישה שבכל פעם מאשימים אותה ומטיפים לה ש"היא פשוט צריכה לאכול פחות ולזוז יותר".',
+          question: 'כיצד נוכל לנפץ את המיתוסים המזיקים הללו בתוך השיח הטיפולי?'
+        },
+        tasks: [
+          {
+            type: 'stigma_game',
+            instruction: 'לפניך קביעות והתבטאויות. זהה אם מדובר ב"סטיגמה מזיקה ומיושנת" שיש לנפץ, או ב"אמת ביולוגית ומדעית" המבוססת על מנגנון פיזיולוגי:',
+            statements: [
+              { id: 'st1', text: '"השמנה נובעת מחוסר משמעת עצמית, עצלנות והיעדר כוח רצון של המטופל."', type: 'stigma', feedback: 'זוהי סטיגמה פוגענית ומיושנת! השמנה היא מחלה נוירו-הורמונלית כרונית עם בסיס גנטי חזק ומנגנוני הגנה פיזיולוגיים מפני ירידה במשקל.' },
+              { id: 'st2', text: '"השמנה היא מצב כרוני, פרוגרסיבית ונשנית הדורשת טיפול ממושך ומותאם אישית לטווח הארוך."', type: 'fact', feedback: 'מדויק! כיום ארגוני הבריאות המובילים מגדירים השמנה כמחלה כרונית רב-מערכתית ולא כמפגע אסתטי או כשל התנהגותי.' },
+              { id: 'st3', text: '"אם מטופל לא מצליח לרדת במשקל, זה פשוט בגלל שהוא לא סופר קלוריות כמו שצריך או מרמה בדיאטה."', type: 'stigma', feedback: 'ניפוץ! הגוף מפעיל התאמה תרמית אדפטיבית המורידה את חילוף החומרים בגלל ירידה בלפטין, מה שמקשה מאוד על ירידה מתמדת במשקל.' },
+              { id: 'st4', text: '"היחס השלילי והסטיגמטי של צוותים רפואיים למטופלים עם השמנה גורם להם להימנע מטיפולים ובדיקות סקר חיוניות."', type: 'fact', feedback: 'נכון מאוד ומצער. מחקרים מראים כי סטיגמה גורמת לדחיית טיפול, ירידה באמון במערכת ופגיעה קשה בבריאות המנטלית והפיזית.' },
+              { id: 'st5', text: '"השמנה בגיל המעבר קשורה רק לאורח חיים עצלן של נשים מבוגרות."', type: 'stigma', feedback: 'לא נכון! השינויים המטבוליים בגיל המעבר נגרמים מירידה ביולוגית באסטרוגן, המביאה לשינוי ישיר באיכות ופיזור רקמת השומן והפחתת שריפת האנרגיה במנוחה.' }
+            ]
+          }
+        ]
+      }
+    ];
 
-  const handleStigmaDecision = (chosenType) => {
-    sfx.init();
-    const currentStatement = currentTask.statements[currentStigmaIndex];
-    const isCorrect = currentStatement.type === chosenType;
+    const MAX_SCORE = 540;
 
-    if (isCorrect) {
-      sfx.playSuccess();
-      setScore(prev => prev + 25);
-      setStigmaFeedback({
-        isCorrect: true,
-        text: currentStatement.feedback
-      });
-    } else {
-      sfx.playError();
-      setEnergy(prev => Math.max(prev - 15, 0));
-      setStigmaFeedback({
-        isCorrect: false,
-        text: `שגיאה בסיווג. ${currentStatement.feedback}`
-      });
-    }
-  };
+    // Game state
+    let state = {
+      gameState: 'welcome', // welcome | playing | finished
+      currentStage: 0,
+      score: 0,
+      energy: 100,
+      userName: '',
+      stageProgress: [0, 0, 0, 0, 0], // 0 = locked, 1 = active, 2 = completed
+      activeTaskIndex: 0,
+      sortingState: {},
+      matchingSelections: { left: null, right: null },
+      matchedPairs: {},
+      currentStigmaIndex: 0,
+      stigmaCompleted: false,
+      feedback: null // { isCorrect, text }
+    };
 
-  const handleNextStigma = () => {
-    sfx.playClick();
-    setStigmaFeedback(null);
-    if (currentStigmaIndex + 1 < currentTask.statements.length) {
-      setCurrentStigmaIndex(prev => prev + 1);
-    } else {
-      setStigmaCompleted(true);
-      setFeedback({
-        isCorrect: true,
-        text: 'מדהים! סיימת לנפץ את הסטיגמות החברתיות. אתה מוכן לשינוי גישה טיפולית אמיתית!'
-      });
-    }
-  };
+    // Initialize application
+    window.onload = function() {
+      render();
+    };
 
-  // Reset stigma game state
-  useEffect(() => {
-    if (currentTask?.type === 'stigma_game') {
-      setCurrentStigmaIndex(0);
-      setStigmaCompleted(false);
-      setStigmaFeedback(null);
-    }
-  }, [currentStage, activeTaskIndex]);
-
-  // Navigation between tasks & stages
-  const handleNextTask = () => {
-    sfx.playClick();
-    setFeedback(null);
-    if (activeTaskIndex + 1 < currentStageData.tasks.length) {
-      setActiveTaskIndex(prev => prev + 1);
-    } else {
-      sfx.playLevelUp();
-      const updatedProgress = [...stageProgress];
-      updatedProgress[currentStage] = 2; // Completed
-      if (currentStage + 1 < STAGES.length) {
-        updatedProgress[currentStage + 1] = 1; // Unlock next
-        setStageProgress(updatedProgress);
-        setCurrentStage(prev => prev + 1);
-        setActiveTaskIndex(0);
-        setEnergy(prev => Math.min(prev + 30, 100));
+    function toggleMute() {
+      sfx.muted = !sfx.muted;
+      const muteIcon = document.getElementById('mute-icon');
+      if (sfx.muted) {
+        muteIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>`;
       } else {
-        setStageProgress(updatedProgress);
-        setGameState('finished');
+        muteIcon.innerHTML = `<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M12 18.75V5.25L7.75 9H4.5V15h3.25L12 18.75z"></path>`;
+      }
+      sfx.playClick();
+    }
+
+    function startGame() {
+      sfx.init();
+      sfx.playClick();
+      const input = document.getElementById('username-input');
+      state.userName = input.value.trim() || 'חוקר מטבולי מוסמך';
+      state.gameState = 'playing';
+      state.currentStage = 0;
+      state.score = 0;
+      state.energy = 100;
+      state.activeTaskIndex = 0;
+      state.stageProgress = [1, 0, 0, 0, 0];
+      state.feedback = null;
+      
+      initTaskState();
+      render();
+    }
+
+    function initTaskState() {
+      const currentTask = STAGES[state.currentStage].tasks[state.activeTaskIndex];
+      state.feedback = null;
+
+      if (currentTask.type === 'sorting') {
+        state.sortingState = {};
+        currentTask.items.forEach(item => {
+          state.sortingState[item.id] = null;
+        });
+      } else if (currentTask.type === 'matching') {
+        state.matchingSelections = { left: null, right: null };
+        state.matchedPairs = {};
+      } else if (currentTask.type === 'stigma_game') {
+        state.currentStigmaIndex = 0;
+        state.stigmaCompleted = false;
       }
     }
-  };
 
-  const handleRetryStage = () => {
-    sfx.playClick();
-    setEnergy(100);
-    setFeedback(null);
-    setActiveTaskIndex(0);
-    setMatchedPairs({});
-    setMatchingSelections({ left: null, right: null });
-    if (currentTask?.type === 'stigma_game') {
-      setCurrentStigmaIndex(0);
-      setStigmaCompleted(false);
-      setStigmaFeedback(null);
+    function retryStage() {
+      sfx.playClick();
+      state.energy = 100;
+      state.feedback = null;
+      state.activeTaskIndex = 0;
+      initTaskState();
+      render();
     }
-  };
 
-  // Calculate final score percentage
-  const finalPercentage = Math.min(Math.round((score / MAX_SCORE) * 100), 100);
+    // MCQ Handler
+    function handleMCQAnswer(isCorrect, element) {
+      if (state.feedback) return;
+      sfx.init();
+      
+      const currentTask = STAGES[state.currentStage].tasks[state.activeTaskIndex];
+      if (isCorrect) {
+        sfx.playSuccess();
+        state.score += 40;
+        state.feedback = {
+          isCorrect: true,
+          text: `כל הכבוד! תשובה נכונה. ${currentTask.explanation || ''}`
+        };
+      } else {
+        sfx.playError();
+        state.energy = Math.max(state.energy - 20, 0);
+        state.feedback = {
+          isCorrect: false,
+          text: `תשובה לא מדויקת. ${currentTask.explanation || 'חשוב שוב על המנגנונים התאיים והפיזיולוגיים.'}`
+        };
+      }
+      render();
+    }
 
-  return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-slate-900" dir="rtl">
-      {/* Dynamic Ambient Background Elements */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/10 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] rounded-full bg-cyan-900/10 blur-[150px]" />
-        <div className="absolute inset-0 opacity-5 mix-blend-overlay" style={{ backgroundImage: `radial-gradient(circle, #06B6D4 1px, transparent 1px)`, backgroundSize: '24px 24px' }} />
-      </div>
+    // Sorting Handler
+    function handleSortItem(itemId, categoryId) {
+      if (state.feedback) return;
+      sfx.playClick();
+      state.sortingState[itemId] = categoryId;
+      render();
+    }
 
-      {/* Header HUD */}
-      <header className="relative z-10 border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-md sticky top-0">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-tr from-cyan-500 to-indigo-500 p-2 rounded-xl shadow-lg shadow-cyan-500/20">
-              <Activity className="w-6 h-6 text-slate-950 animate-pulse" />
-            </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tight bg-gradient-to-l from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">
-                MetaboLex
-              </h1>
-              <span className="text-xs text-slate-400 font-medium block">הזירה האינטראקטיבית לחקר ההשמנה</span>
-            </div>
-          </div>
+    function handleVerifySorting() {
+      sfx.init();
+      const currentTask = STAGES[state.currentStage].tasks[state.activeTaskIndex];
+      let allCorrect = true;
+      let correctCount = 0;
 
-          {gameState === 'playing' && (
-            <div className="flex items-center gap-6">
-              {/* Score HUD */}
-              <div className="hidden sm:flex items-center gap-2 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg">
-                <Award className="w-4 h-4 text-amber-400" />
-                <span className="text-xs text-slate-400 font-semibold">ניקוד מדעי:</span>
-                <span className="text-sm font-black text-amber-300">{score} XP</span>
-              </div>
+      currentTask.items.forEach(item => {
+        if (state.sortingState[item.id] === item.category) {
+          correctCount++;
+        } else {
+          allCorrect = false;
+        }
+      });
 
-              {/* Energy HUD */}
-              <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-800 px-3 py-1.5 rounded-lg">
-                <Heart className={`w-4 h-4 ${energy > 30 ? 'text-rose-500' : 'text-rose-600 animate-bounce'}`} />
-                <div className="w-20 bg-slate-800 h-2 rounded-full overflow-hidden hidden xs:block">
-                  <div 
-                    className={`h-full transition-all duration-500 ${energy > 50 ? 'bg-emerald-500' : energy > 20 ? 'bg-amber-500' : 'bg-rose-600'}`}
-                    style={{ width: `${energy}%` }}
-                  />
-                </div>
-                <span className="text-xs font-bold text-slate-300">אנרגיית המערכת: {energy}%</span>
-              </div>
-            </div>
-          )}
+      if (allCorrect) {
+        sfx.playSuccess();
+        state.score += 50;
+        state.feedback = {
+          isCorrect: true,
+          text: 'מצוין! סיווגת את כל המאפיינים למקום הנכון בצורה מושלמת!'
+        };
+      } else {
+        sfx.playError();
+        state.energy = Math.max(state.energy - 15, 0);
+        state.feedback = {
+          isCorrect: false,
+          text: `חלק מהסיווגים אינם נכונים (${correctCount}/${currentTask.items.length} נכונים). נתח מחדש את ההבדלים בין שומן ויסרלי לשומן תת-עורי.`
+        };
+      }
+      render();
+    }
 
-          {/* Sound Mute & Controls */}
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={toggleMute}
-              className="p-2 rounded-lg bg-slate-900 border border-slate-800 text-slate-400 hover:text-cyan-400 transition-all"
-              title={soundMuted ? "בטל השתקה" : "השתק צלילים"}
-            >
-              {soundMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-            </button>
-          </div>
-        </div>
-      </header>
+    // Matching Handler
+    function handleSelectMatch(side, id) {
+      if (state.feedback) return;
+      sfx.playClick();
 
-      {/* Main Content Area */}
-      <main className="relative z-10 max-w-6xl mx-auto px-4 py-8">
+      state.matchingSelections[side] = id;
+      
+      if (state.matchingSelections.left && state.matchingSelections.right) {
+        const currentTask = STAGES[state.currentStage].tasks[state.activeTaskIndex];
+        const expectedRight = currentTask.pairs[state.matchingSelections.left];
+
+        if (expectedRight === state.matchingSelections.right) {
+          sfx.playSuccess();
+          state.matchedPairs[state.matchingSelections.left] = state.matchingSelections.right;
+          state.score += 15;
+          state.matchingSelections = { left: null, right: null };
+
+          // Verify if all pairs matched
+          const totalPairsNeeded = Object.keys(currentTask.pairs).length;
+          if (Object.keys(state.matchedPairs).length === totalPairsNeeded) {
+            state.feedback = {
+              isCorrect: true,
+              text: 'כל הכבוד! קישרת נכון את כל ההורמונים והשינויים לציר המקביל להם!'
+            };
+          }
+        } else {
+          sfx.playError();
+          state.energy = Math.max(state.energy - 10, 0);
+          state.matchingSelections = { left: null, right: null };
+        }
+      }
+      render();
+    }
+
+    // Stigma Handler
+    function handleStigmaDecision(chosenType) {
+      sfx.init();
+      const currentTask = STAGES[state.currentStage].tasks[state.activeTaskIndex];
+      const currentStatement = currentTask.statements[state.currentStigmaIndex];
+      const isCorrect = currentStatement.type === chosenType;
+
+      if (isCorrect) {
+        sfx.playSuccess();
+        state.score += 25;
+        showStigmaFeedback(true, currentStatement.feedback);
+      } else {
+        sfx.playError();
+        state.energy = Math.max(state.energy - 15, 0);
+        showStigmaFeedback(false, `שגיאה בסיווג. ${currentStatement.feedback}`);
+      }
+    }
+
+    function showStigmaFeedback(isCorrect, feedbackText) {
+      const container = document.getElementById('stigma-actions-container');
+      const feedbackBox = document.getElementById('stigma-step-feedback');
+      
+      feedbackBox.className = `p-4 rounded-xl text-xs text-right leading-relaxed mb-4 ${
+        isCorrect ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
+      }`;
+      feedbackBox.innerHTML = `<strong class="block mb-1">${isCorrect ? 'סיווג נכון!' : 'סיווג לא תואם:'}</strong>${feedbackText}`;
+      feedbackBox.classList.remove('hidden');
+      
+      container.innerHTML = `
+        <button onclick="handleNextStigma()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs py-3 px-4 rounded-xl font-bold transition-colors">
+          קרא את ההיגד הבא
+        </button>
+      `;
+    }
+
+    function handleNextStigma() {
+      sfx.playClick();
+      const currentTask = STAGES[state.currentStage].tasks[state.activeTaskIndex];
+      
+      if (state.currentStigmaIndex + 1 < currentTask.statements.length) {
+        state.currentStigmaIndex++;
+        render();
+      } else {
+        state.stigmaCompleted = true;
+        state.feedback = {
+          isCorrect: true,
+          text: 'מדהים! סיימת לנפץ את הסטיגמות החברתיות. אתה מוכן לשינוי גישה טיפולית אמיתית!'
+        };
+        render();
+      }
+    }
+
+    // Progression
+    function nextTask() {
+      sfx.playClick();
+      state.feedback = null;
+      const currentStageData = STAGES[state.currentStage];
+
+      if (state.activeTaskIndex + 1 < currentStageData.tasks.length) {
+        state.activeTaskIndex++;
+        initTaskState();
+        render();
+      } else {
+        sfx.playLevelUp();
+        state.stageProgress[state.currentStage] = 2; // Completed
         
-        {/* WELCOME STATE */}
-        {gameState === 'welcome' && (
-          <div className="max-w-2xl mx-auto text-center mt-6">
-            <div className="inline-flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 px-4 py-1.5 rounded-full text-xs font-semibold mb-6 animate-pulse">
-              <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-              סימולטור מטבולי אינטראקטיבי v2.0
-            </div>
+        if (state.currentStage + 1 < STAGES.length) {
+          state.stageProgress[state.currentStage + 1] = 1; // Unlock next
+          state.currentStage++;
+          state.activeTaskIndex = 0;
+          state.energy = Math.min(state.energy + 30, 100);
+          initTaskState();
+          render();
+        } else {
+          // Finished Game
+          state.gameState = 'finished';
+          render();
+        }
+      }
+    }
 
-            <h2 className="text-4xl md:text-5xl font-black tracking-tight text-white mb-6 leading-tight">
-              ברוכים הבאים למסע המטבולי
-            </h2>
+    function resetGame() {
+      sfx.playClick();
+      state.gameState = 'welcome';
+      render();
+    }
 
-            <p className="text-slate-300 text-base md:text-lg leading-relaxed mb-8">
-              היכנסו לתוך עולם מרתק של הדמיה ביולוגית וקלינית. במשחק זה תנווטו בין מסלולים הורמונליים, תתמודדו עם מקרים מורכבים בזמן אמת, ותבצעו דיאגנוזות תאיות בתוך מעבדות סימולציה מתקדמות. חוויה אינטראקטיבית מלאה המשלבת מדע, אסטרטגיה ופענוח מנגנוני גוף האדם.
-            </p>
+    // Unified render function to dynamically update the DOM
+    function render() {
+      // Screen views mapping
+      document.getElementById('screen-welcome').classList.add('hidden');
+      document.getElementById('screen-playing').classList.add('hidden');
+      document.getElementById('screen-finished').classList.add('hidden');
+      document.getElementById('game-hud').classList.add('hidden');
 
-            {/* Mission blueprint view instead of boring study lists */}
-            <div className="bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/40 border border-indigo-500/20 p-6 rounded-2xl mb-8 text-right shadow-xl">
-              <h3 className="text-md font-bold text-slate-200 mb-4 flex items-center gap-2 border-b border-slate-800 pb-2">
-                <Activity className="w-4 h-4 text-cyan-400" />
-                מתווה המשימות בסימולציה שלפניך:
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-slate-400">
-                <div className="flex items-start gap-2.5">
-                  <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full mt-2 shrink-0" />
+      if (state.gameState === 'welcome') {
+        document.getElementById('screen-welcome').classList.remove('hidden');
+      } else if (state.gameState === 'playing') {
+        document.getElementById('screen-playing').classList.remove('hidden');
+        document.getElementById('game-hud').classList.remove('hidden');
+        
+        // Update HUD
+        document.getElementById('hud-score').textContent = `${state.score} XP`;
+        document.getElementById('hud-energy').textContent = `אנרגיה: ${state.energy}%`;
+        const energyBar = document.getElementById('energy-bar');
+        energyBar.style.width = `${state.energy}%`;
+        energyBar.className = `h-full transition-all duration-500 ${state.energy > 50 ? 'bg-emerald-500' : state.energy > 20 ? 'bg-amber-500' : 'bg-rose-600'}`;
+
+        // Map rendering
+        const mapContainer = document.getElementById('stages-map');
+        mapContainer.innerHTML = STAGES.map((stg, index) => {
+          const isActive = index === state.currentStage;
+          const isCompleted = state.stageProgress[index] === 2;
+          
+          return `
+            <div class="p-3 rounded-xl border transition-all text-right ${
+              isActive 
+                ? 'bg-gradient-to-l from-indigo-950 to-slate-900 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
+                : isCompleted 
+                  ? 'bg-slate-900/40 border-emerald-500/20 text-slate-400' 
+                  : 'bg-slate-950/20 border-slate-900 text-slate-600'
+            }">
+              <div class="flex items-center gap-2.5 justify-between">
+                <div class="flex items-center gap-2">
+                  <div class="p-1.5 rounded-lg ${isActive ? 'bg-indigo-500/20 text-indigo-400' : isCompleted ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-500'}">
+                    ${stg.icon}
+                  </div>
                   <div>
-                    <span className="font-bold text-slate-200 block">מעבדת רקמת השומן</span>
-                    <span className="text-xs text-slate-400">אבחון פתופיזיולוגי של היפרטרופיה תאית והיפוקסיה.</span>
+                    <p class="text-xs font-black">${stg.title}</p>
+                    <p class="text-[10px] text-slate-400 truncate max-w-[150px]">${stg.subtitle}</p>
                   </div>
                 </div>
-                <div className="flex items-start gap-2.5">
-                  <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full mt-2 shrink-0" />
-                  <div>
-                    <span className="font-bold text-slate-200 block">ויסות נוירו-אנדוקריני</span>
-                    <span className="text-xs text-slate-400">סנכרון ציר המוח-מעי וקשר אסטרוגני-לפטיני.</span>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-2 shrink-0" />
-                  <div>
-                    <span className="font-bold text-slate-200 block">מודל ה-3M וציר הפוריות</span>
-                    <span className="text-xs text-slate-400">סיבוכים מטבוליים, מכניים ומנטליים בתיקים רפואיים.</span>
-                  </div>
-                </div>
-                <div className="flex items-start gap-2.5">
-                  <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full mt-2 shrink-0" />
-                  <div>
-                    <span className="font-bold text-slate-200 block">מניעת השמנה סרקופנית</span>
-                    <span className="text-xs text-slate-400">שילוב אגוניסטים תרופתיים חדשים לצד אימוני כוח.</span>
-                  </div>
-                </div>
+                ${isCompleted ? `
+                  <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                  </svg>` : ''
+                }
+                ${isActive ? '<div class="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping shrink-0"></div>' : ''}
               </div>
             </div>
+          `;
+        }).join('');
 
-            {/* User Input Section */}
-            <div className="max-w-md mx-auto bg-slate-900/80 p-6 rounded-xl border border-slate-800 mb-8">
-              <label className="block text-sm font-semibold text-slate-300 mb-2 text-right">הזן את שמך לזיהוי במערכת המטבולית:</label>
-              <input 
-                type="text" 
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                placeholder="למשל: ד״ר דניאל / מפענח מטבולי"
-                className="w-full bg-slate-950 border border-slate-700/80 px-4 py-3 rounded-lg text-slate-100 focus:outline-none focus:border-cyan-400 text-center transition-colors font-medium"
-              />
-            </div>
+        // Progress sidebar bars
+        document.getElementById('active-stage-label').textContent = `${state.currentStage + 1} מתוך ${STAGES.length}`;
+        document.getElementById('stages-bar').style.width = `${((state.currentStage + 1) / STAGES.length) * 100}%`;
 
+        // Render current Stage Card info
+        const stageData = STAGES[state.currentStage];
+        document.getElementById('stage-badge').textContent = `שלב ${state.currentStage + 1}`;
+        document.getElementById('stage-title').textContent = stageData.title;
+        document.getElementById('stage-subtitle').textContent = stageData.subtitle;
+        document.getElementById('stage-desc').textContent = stageData.description;
+        document.getElementById('task-badge').textContent = `תת-משימה ${state.activeTaskIndex + 1} מתוך ${stageData.tasks.length}`;
+
+        // Render Patient Case
+        document.getElementById('patient-name').innerHTML = `
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          מטופל וירטואלי: ${stageData.caseStudy.patient}
+        `;
+        document.getElementById('patient-symptoms').innerHTML = `<strong class="text-slate-400">תסמינים ומדדים בסימולציה: </strong>${stageData.caseStudy.symptoms}`;
+        document.getElementById('patient-question').textContent = `"${stageData.caseStudy.question}"`;
+
+        // Task View Logic
+        const taskWorkspace = document.getElementById('task-workspace');
+        const energyFailure = document.getElementById('energy-failure');
+        
+        if (state.energy <= 0) {
+          taskWorkspace.classList.add('hidden');
+          energyFailure.classList.remove('hidden');
+        } else {
+          taskWorkspace.classList.remove('hidden');
+          energyFailure.classList.add('hidden');
+          
+          const currentTask = stageData.tasks[state.activeTaskIndex];
+          renderTask(currentTask, taskWorkspace);
+        }
+
+        // Render Feedback Box
+        const feedbackPanel = document.getElementById('feedback-panel');
+        if (state.feedback) {
+          feedbackPanel.classList.remove('hidden');
+          const isCorrect = state.feedback.isCorrect;
+          
+          feedbackPanel.className = `p-5 rounded-2xl text-right transition-all border mt-6 ${
+            isCorrect ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200' : 'bg-rose-500/15 border-rose-500/30 text-rose-200'
+          }`;
+          
+          document.getElementById('feedback-title').textContent = isCorrect ? 'ניתוח מדעי מדויק!' : 'מחסום ביולוגי';
+          document.getElementById('feedback-desc').textContent = state.feedback.text;
+          
+          const feedbackIcon = document.getElementById('feedback-icon');
+          if (isCorrect) {
+            feedbackIcon.innerHTML = `<svg class="w-5 h-5 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>`;
+            document.getElementById('feedback-retry-btn').classList.add('hidden');
+          } else {
+            feedbackIcon.innerHTML = `<svg class="w-5 h-5 text-rose-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path></svg>`;
+            document.getElementById('feedback-retry-btn').classList.remove('hidden');
+          }
+        } else {
+          feedbackPanel.classList.add('hidden');
+        }
+
+      } else if (state.gameState === 'finished') {
+        document.getElementById('screen-finished').classList.remove('hidden');
+        
+        // Final calculations & display updates
+        const finalPercentage = Math.min(Math.round((state.score / MAX_SCORE) * 100), 100);
+        document.getElementById('finished-username').textContent = state.userName;
+        document.getElementById('final-percentage').textContent = `${finalPercentage}%`;
+        
+        let ranking = 'חוקר מתחיל';
+        if (finalPercentage >= 90) ranking = 'מומחה בכיר';
+        else if (finalPercentage >= 70) ranking = 'מפענח מטבולי';
+        
+        document.getElementById('final-ranking').textContent = ranking;
+        
+        // Update certificate
+        document.getElementById('certificate-name').textContent = state.userName;
+        document.getElementById('certificate-percentage').textContent = `${finalPercentage}%`;
+        document.getElementById('certificate-date').textContent = new Date().toLocaleDateString('he-IL');
+      }
+    }
+
+    // Dynamic Task Rendering
+    function renderTask(task, container) {
+      if (task.type === 'mcq') {
+        let optionsHTML = task.options.map(option => {
+          let btnStyle = "border-slate-800 hover:border-slate-700 hover:bg-slate-900/60 text-slate-300";
+          if (state.feedback) {
+            if (option.isCorrect) {
+              btnStyle = "border-emerald-500/50 bg-emerald-500/10 text-emerald-300";
+            } else {
+              btnStyle = "border-slate-800 opacity-50 text-slate-500";
+            }
+          }
+          
+          return `
             <button 
-              onClick={handleStartGame}
-              className="group inline-flex items-center gap-3 bg-gradient-to-r from-cyan-500 to-indigo-600 text-slate-950 font-black px-8 py-4 rounded-xl text-lg hover:from-cyan-400 hover:to-indigo-500 transition-all shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/35 transform hover:-translate-y-0.5 active:translate-y-0"
+              onclick="handleMCQAnswer(${option.isCorrect}, this)" 
+              ${state.feedback ? 'disabled' : ''}
+              class="w-full text-right p-4 rounded-xl border text-sm transition-all flex items-center justify-between gap-3 ${btnStyle}"
             >
-              הפעל את הסימולציה המטבולית
-              <Play className="w-5 h-5 fill-current text-slate-950 group-hover:scale-110 transition-transform" />
+              <span>${option.text}</span>
+              ${state.feedback && option.isCorrect ? `
+                <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>` : ''
+              }
             </button>
+          `;
+        }).join('');
+
+        container.innerHTML = `
+          <div>
+            <div class="mb-4 text-right">
+              <span class="text-xs font-semibold text-slate-400 block mb-1">פענוח המנגנון הנכון:</span>
+              <h4 class="text-base font-bold text-slate-100 leading-snug">${task.question}</h4>
+            </div>
+            <div class="space-y-3 my-6">
+              ${optionsHTML}
+            </div>
           </div>
-        )}
+        `;
+      } 
+      else if (task.type === 'sorting') {
+        let itemsHTML = task.items.map(item => {
+          const currentTarget = state.sortingState[item.id];
+          
+          let actionButtons = task.categories.map(cat => {
+            const isSelected = currentTarget === cat.id;
+            return `
+              <button 
+                onclick="handleSortItem('${item.id}', '${cat.id}')"
+                ${state.feedback ? 'disabled' : ''}
+                class="flex-1 text-[10px] font-black py-1.5 px-2 rounded transition-all text-center border ${
+                  isSelected 
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.25)]' 
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                }"
+              >
+                ${cat.title.split(' / ')[0]}
+              </button>
+            `;
+          }).join('');
 
-        {/* PLAYING STATE */}
-        {gameState === 'playing' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            
-            {/* Left Column: Progress Sidebar (Stage Map) */}
-            <div className="lg:col-span-3 bg-slate-900/60 border border-slate-800/80 p-4 rounded-2xl backdrop-blur-md">
-              <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-4 text-right">מפת שלבי המסע</h3>
-              <div className="space-y-3">
-                {STAGES.map((stg, index) => {
-                  const isActive = index === currentStage;
-                  const isCompleted = stageProgress[index] === 2;
-
-                  return (
-                    <div 
-                      key={stg.id}
-                      className={`p-3 rounded-xl border transition-all text-right ${
-                        isActive 
-                          ? 'bg-gradient-to-l from-indigo-950 to-slate-900 border-indigo-500/40 shadow-[0_0_15px_rgba(99,102,241,0.1)]' 
-                          : isCompleted 
-                            ? 'bg-slate-900/40 border-emerald-500/20 text-slate-400' 
-                            : 'bg-slate-950/20 border-slate-900 text-slate-600'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`p-1.5 rounded-lg ${isActive ? 'bg-indigo-500/20 text-indigo-400' : isCompleted ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-900 text-slate-500'}`}>
-                            {stg.icon}
-                          </div>
-                          <div>
-                            <p className="text-xs font-black">{stg.title}</p>
-                            <p className="text-[10px] text-slate-400 truncate max-w-[150px]">{stg.subtitle}</p>
-                          </div>
-                        </div>
-                        {isCompleted && <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />}
-                        {isActive && <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-ping shrink-0" />}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Progress summary inside sidebar */}
-              <div className="mt-6 pt-4 border-t border-slate-800 text-right">
-                <span className="text-xs text-slate-400">שלב פעיל:</span>
-                <p className="text-sm font-bold text-slate-200">{currentStage + 1} מתוך {STAGES.length}</p>
-                <div className="w-full bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-                  <div 
-                    className="bg-indigo-500 h-full transition-all duration-500" 
-                    style={{ width: `${((currentStage) / STAGES.length) * 100}%` }}
-                  />
-                </div>
+          return `
+            <div class="bg-slate-950/80 border border-slate-800 p-4 rounded-xl flex flex-col justify-between gap-3 text-right">
+              <span class="text-xs text-slate-300 font-semibold">${item.text}</span>
+              <div class="flex gap-2 mt-2">
+                ${actionButtons}
               </div>
             </div>
+          `;
+        }).join('');
 
-            {/* Right Column: Stage Details & Interactive HUD */}
-            <div className="lg:col-span-9 space-y-6">
-              
-              {/* Stage Title Card */}
-              <div className="bg-gradient-to-r from-slate-900 via-slate-950 to-indigo-950/80 border border-slate-800/80 p-6 rounded-2xl relative overflow-hidden shadow-xl">
-                <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                  <div>
-                    <span className="text-xs font-black text-indigo-400 tracking-widest uppercase">שלב {currentStage + 1}</span>
-                    <h2 className="text-2xl font-black text-white mt-1">{currentStageData.title}</h2>
-                    <p className="text-sm text-slate-300 mt-1">{currentStageData.subtitle}</p>
-                  </div>
-                  <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-800/80 px-3 py-1.5 rounded-xl self-start sm:self-center">
-                    <Zap className="w-4 h-4 text-cyan-400 animate-pulse" />
-                    <span className="text-xs font-medium text-slate-400">תת-משימה {activeTaskIndex + 1} מתוך {currentStageData.tasks.length}</span>
-                  </div>
-                </div>
-                <p className="text-sm text-slate-400 mt-4 leading-relaxed bg-slate-900/40 p-3 rounded-xl border border-slate-800/30">
-                  {currentStageData.description}
-                </p>
-              </div>
-
-              {/* Case Study Companion - Immersive Learning Panel */}
-              <div className="bg-gradient-to-l from-indigo-950/40 to-slate-900/90 border border-indigo-500/15 p-5 rounded-2xl relative">
-                <div className="absolute top-3 left-4 bg-indigo-500/10 text-indigo-300 text-[10px] font-bold px-2.5 py-1 rounded-full border border-indigo-500/20">
-                  תיק מקרה בסימולציה
-                </div>
-                <h3 className="text-sm font-bold text-slate-200 mb-2 flex items-center gap-2">
-                  <Users className="w-4 h-4 text-indigo-400" />
-                  מטופל וירטואלי: {currentStageData.caseStudy.patient}
-                </h3>
-                <p className="text-xs text-slate-300 leading-relaxed mb-3">
-                  <strong className="text-slate-400">תסמינים ומדדים בסימולציה: </strong> 
-                  {currentStageData.caseStudy.symptoms}
-                </p>
-                <div className="bg-slate-950/60 p-3 rounded-lg border border-slate-800/50 text-xs italic text-cyan-300/90 leading-relaxed">
-                  " {currentStageData.caseStudy.question} "
-                </div>
-              </div>
-
-              {/* INTERACTIVE MINI-GAME CONTAINER */}
-              <div className="bg-slate-900/40 border border-slate-800/80 rounded-3xl p-6 min-h-[300px] flex flex-col justify-between shadow-2xl relative">
-                
-                {/* Visual feedback if energy is zero */}
-                {energy <= 0 ? (
-                  <div className="text-center py-12">
-                    <XCircle className="w-16 h-16 text-rose-500 mx-auto mb-4 animate-bounce" />
-                    <h3 className="text-xl font-black text-white">אנרגיית המערכת אזלה!</h3>
-                    <p className="text-slate-400 mt-2 text-sm max-w-md mx-auto">
-                      שיווי המשקל המטבולי נפגע. השתמש בידע שצברת כדי לארגן מחדש את האסטרטגיה הקלינית.
-                    </p>
-                    <button 
-                      onClick={handleRetryStage}
-                      className="mt-6 inline-flex items-center gap-2 bg-indigo-500 text-white font-bold px-5 py-2.5 rounded-lg hover:bg-indigo-600 transition-colors"
-                    >
-                      <RotateCcw className="w-4 h-4" />
-                      אתחל שלב זה מחדש
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    {/* TASK 1: MCQ */}
-                    {currentTask?.type === 'mcq' && (
-                      <div>
-                        <div className="mb-4 text-right">
-                          <span className="text-xs font-semibold text-slate-400 block mb-1">פענוח המנגנון הנכון:</span>
-                          <h4 className="text-base font-bold text-slate-100 leading-snug">{currentTask.question}</h4>
-                        </div>
-
-                        <div className="space-y-3 my-6">
-                          {currentTask.options.map((option) => {
-                            let optionStyle = "border-slate-800 hover:border-slate-700 hover:bg-slate-900/60 text-slate-300";
-                            if (feedback) {
-                              if (option.isCorrect) {
-                                optionStyle = "border-emerald-500/50 bg-emerald-500/10 text-emerald-300";
-                              } else {
-                                optionStyle = "border-slate-800 opacity-50 text-slate-500";
-                              }
-                            }
-
-                            return (
-                              <button
-                                key={option.id}
-                                disabled={!!feedback}
-                                onClick={() => handleMCQAnswer(option)}
-                                className={`w-full text-right p-4 rounded-xl border text-sm transition-all flex items-center justify-between gap-3 ${optionStyle}`}
-                              >
-                                <span>{option.text}</span>
-                                {feedback && option.isCorrect && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* TASK 2: SORTING GAME */}
-                    {currentTask?.type === 'sorting' && (
-                      <div>
-                        <div className="mb-4 text-right">
-                          <span className="text-xs font-bold text-slate-400 block mb-1">מעבדת מיון מורפולוגית:</span>
-                          <p className="text-sm text-slate-300 font-medium">{currentTask.instruction}</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
-                          {currentTask.items.map((item) => {
-                            const currentTarget = sortingState[item.id];
-                            return (
-                              <div key={item.id} className="bg-slate-950/80 border border-slate-800 p-4 rounded-xl flex flex-col justify-between gap-3 text-right">
-                                <span className="text-xs text-slate-300 font-semibold">{item.text}</span>
-                                <div className="flex gap-2 mt-2">
-                                  {currentTask.categories.map((cat) => {
-                                    const isSelected = currentTarget === cat.id;
-                                    return (
-                                      <button
-                                        key={cat.id}
-                                        disabled={!!feedback}
-                                        onClick={() => handleSortItem(item.id, cat.id)}
-                                        className={`flex-1 text-[10px] font-black py-1.5 px-2 rounded transition-all text-center border ${
-                                          isSelected 
-                                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.25)]' 
-                                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                                        }`}
-                                      >
-                                        {cat.title.split('/')[0]}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {!feedback && (
-                          <div className="flex justify-center mt-4">
-                            <button
-                              onClick={handleVerifySorting}
-                              className="bg-indigo-600 text-white hover:bg-indigo-500 px-6 py-2.5 rounded-lg text-xs font-black transition-all"
-                            >
-                              אמת את המיונים במעבדה
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* TASK 3: MATCHING/CONNECTING GAME */}
-                    {currentTask?.type === 'matching' && (
-                      <div>
-                        <div className="mb-4 text-right">
-                          <span className="text-xs font-bold text-slate-400 block mb-1">קישור מולקולרי ופיזיולוגי:</span>
-                          <p className="text-sm text-slate-300 font-medium">{currentTask.instruction}</p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-6 relative">
-                          {/* Left Column */}
-                          <div className="space-y-2">
-                            <h5 className="text-xs font-black text-indigo-400 text-right mb-2">איתות / מצב פיזיולוגי</h5>
-                            {currentTask.left.map((item) => {
-                              const isMatched = !!matchedPairs[item.id];
-                              const isSelected = matchingSelections.left === item.id;
-                              
-                              return (
-                                <button
-                                  key={item.id}
-                                  disabled={isMatched || !!feedback}
-                                  onClick={() => handleSelectMatch('left', item.id)}
-                                  className={`w-full text-right p-3 rounded-lg border text-xs transition-all flex items-center justify-between ${
-                                    isMatched 
-                                      ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 opacity-60' 
-                                      : isSelected 
-                                        ? 'bg-cyan-500/10 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.15)]' 
-                                        : 'bg-slate-950/50 border-slate-800 hover:border-slate-700 text-slate-300'
-                                  }`}
-                                >
-                                  <span>{item.text}</span>
-                                  {isMatched && <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-
-                          {/* Right Column */}
-                          <div className="space-y-2">
-                            <h5 className="text-xs font-black text-purple-400 text-right mb-2">תוצאה / השפעה קלינית</h5>
-                            {currentTask.right.map((item) => {
-                              const isMatched = Object.values(matchedPairs).includes(item.id);
-                              const isSelected = matchingSelections.right === item.id;
-
-                              return (
-                                <button
-                                  key={item.id}
-                                  disabled={isMatched || !!feedback}
-                                  onClick={() => handleSelectMatch('right', item.id)}
-                                  className={`w-full text-right p-3 rounded-lg border text-xs transition-all flex items-center justify-between ${
-                                    isMatched 
-                                      ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 opacity-60' 
-                                      : isSelected 
-                                        ? 'bg-purple-500/10 border-purple-400 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.15)]' 
-                                        : 'bg-slate-950/50 border-slate-800 hover:border-slate-700 text-slate-300'
-                                  }`}
-                                >
-                                  <span>{item.text}</span>
-                                  {isMatched && <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
-                                </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* TASK 4: STIGMA DESTRUCTION */}
-                    {currentTask?.type === 'stigma_game' && (
-                      <div>
-                        <div className="mb-4 text-right">
-                          <span className="text-xs font-bold text-slate-400 block mb-1">מאתר מיתוסים קליני:</span>
-                          <p className="text-sm text-slate-300 font-medium">{currentTask.instruction}</p>
-                        </div>
-
-                        {!stigmaCompleted ? (
-                          <div className="bg-slate-950/80 border border-slate-800/80 p-6 rounded-2xl my-6 text-center shadow-inner relative overflow-hidden">
-                            <div className="absolute inset-0 opacity-5 pointer-events-none">
-                              <svg width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                <circle cx="30" cy="40" r="15" fill="#EF4444" />
-                                <circle cx="70" cy="60" r="20" fill="#10B981" />
-                                <line x1="30" y1="40" x2="70" y2="60" stroke="white" strokeWidth="2" />
-                              </svg>
-                            </div>
-
-                            <span className="text-[10px] font-black bg-indigo-500/15 text-indigo-300 px-2 py-1 rounded-full uppercase tracking-wider">
-                              היגד {currentStigmaIndex + 1} מתוך {currentTask.statements.length}
-                            </span>
-                            
-                            <p className="text-md md:text-lg font-black text-slate-100 my-6 max-w-xl mx-auto leading-relaxed">
-                              "{currentTask.statements[currentStigmaIndex].text}"
-                            </p>
-
-                            {stigmaFeedback ? (
-                              <div className={`p-4 rounded-xl text-xs text-right leading-relaxed mb-4 ${
-                                stigmaFeedback.isCorrect ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-300 border border-rose-500/20'
-                              }`}>
-                                <strong className="block mb-1">{stigmaFeedback.isCorrect ? 'סיווג נכון!' : 'סיווג לא תואם:'}</strong>
-                                {stigmaFeedback.text}
-                              </div>
-                            ) : (
-                              <div className="flex gap-4 max-w-md mx-auto">
-                                <button
-                                  onClick={() => handleStigmaDecision('stigma')}
-                                  className="flex-1 bg-gradient-to-tr from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-black py-3 px-4 rounded-xl text-xs shadow-lg shadow-rose-950/30 transition-all transform hover:-translate-y-0.5"
-                                >
-                                  💥 סטיגמה מיושנת
-                                </button>
-                                <button
-                                  onClick={() => handleStigmaDecision('fact')}
-                                  className="flex-1 bg-gradient-to-tr from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-black py-3 px-4 rounded-xl text-xs shadow-lg shadow-emerald-950/30 transition-all transform hover:-translate-y-0.5"
-                                >
-                                  🧬 עובדה ביולוגית
-                                </button>
-                              </div>
-                            )}
-
-                            {stigmaFeedback && (
-                              <button
-                                onClick={handleNextStigma}
-                                className="mt-2 inline-flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-4 py-2 rounded-lg transition-colors"
-                              >
-                                קרא את ההיגד הבא
-                                <ChevronRight className="w-3.5 h-3.5 rotate-180" />
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="text-center py-6 text-emerald-400 font-bold">
-                            מסך מנפצי הסטיגמה פוענח לחלוטין!
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* FEEDBACK & NEXT TASK CONTROLLER */}
-                    {feedback && (
-                      <div className={`p-5 rounded-2xl text-right transition-all border ${
-                        feedback.isCorrect 
-                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-200' 
-                          : 'bg-rose-500/15 border-rose-500/30 text-rose-200'
-                      }`}>
-                        <div className="flex items-start gap-3">
-                          {feedback.isCorrect 
-                            ? <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-                            : <XCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-                          }
-                          <div>
-                            <h5 className="font-black text-sm">{feedback.isCorrect ? 'ניתוח מדעי מדויק!' : 'מחסום ביולוגי'}</h5>
-                            <p className="text-xs mt-1 leading-relaxed">{feedback.text}</p>
-                          </div>
-                        </div>
-
-                        <div className="flex justify-end gap-3 mt-4 border-t border-slate-800 pt-3">
-                          {!feedback.isCorrect && (
-                            <button
-                              onClick={handleRetryStage}
-                              className="text-xs bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-lg font-bold text-slate-300 transition-colors"
-                            >
-                              נסה שוב משימה זו
-                            </button>
-                          )}
-                          
-                          {(feedback.isCorrect || energy <= 0) && (
-                            <button
-                              onClick={handleNextTask}
-                              className="text-xs bg-gradient-to-l from-cyan-500 to-indigo-600 text-slate-950 hover:from-cyan-400 hover:to-indigo-500 px-5 py-2 rounded-lg font-black transition-all flex items-center gap-1.5"
-                            >
-                              <span>המשך לשלב הבא במסע</span>
-                              <ChevronRight className="w-4 h-4 rotate-180" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
+        container.innerHTML = `
+          <div>
+            <div class="mb-4 text-right">
+              <span class="text-xs font-bold text-slate-400 block mb-1">מעבדת מיון מורפולוגית:</span>
+              <p class="text-sm text-slate-300 font-medium">${task.instruction}</p>
             </div>
-
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-6">
+              ${itemsHTML}
+            </div>
+            ${!state.feedback ? `
+              <div class="flex justify-center mt-4">
+                <button onclick="handleVerifySorting()" class="bg-indigo-600 text-white hover:bg-indigo-500 px-6 py-2.5 rounded-lg text-xs font-black transition-all">
+                  אמת את המיונים במעבדה
+                </button>
+              </div>` : ''
+            }
           </div>
-        )}
+        `;
+      } 
+      else if (task.type === 'matching') {
+        let leftHTML = task.left.map(item => {
+          const isMatched = !!state.matchedPairs[item.id];
+          const isSelected = state.matchingSelections.left === item.id;
+          
+          return `
+            <button 
+              onclick="handleSelectMatch('left', '${item.id}')"
+              ${isMatched || state.feedback ? 'disabled' : ''}
+              class="w-full text-right p-3 rounded-lg border text-xs transition-all flex items-center justify-between ${
+                isMatched 
+                  ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 opacity-60' 
+                  : isSelected 
+                    ? 'bg-cyan-500/10 border-cyan-400 text-cyan-300 shadow-[0_0_10px_rgba(6,182,212,0.15)]' 
+                    : 'bg-slate-950/50 border-slate-800 hover:border-slate-700 text-slate-300'
+              }"
+            >
+              <span>${item.text}</span>
+              ${isMatched ? `
+                <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>` : ''
+              }
+            </button>
+          `;
+        }).join('');
 
-        {/* FINISHED / COMPLETED STATE */}
-        {gameState === 'finished' && (
-          <div className="max-w-3xl mx-auto text-center py-6">
-            <div className="inline-flex p-4 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 shadow-xl shadow-yellow-500/20 mb-6">
-              <Award className="w-14 h-14 text-slate-950 animate-bounce" />
+        let rightHTML = task.right.map(item => {
+          const isMatched = Object.values(state.matchedPairs).includes(item.id);
+          const isSelected = state.matchingSelections.right === item.id;
+          
+          return `
+            <button 
+              onclick="handleSelectMatch('right', '${item.id}')"
+              ${isMatched || state.feedback ? 'disabled' : ''}
+              class="w-full text-right p-3 rounded-lg border text-xs transition-all flex items-center justify-between ${
+                isMatched 
+                  ? 'bg-emerald-950/20 border-emerald-500/30 text-emerald-400 opacity-60' 
+                  : isSelected 
+                    ? 'bg-purple-500/10 border-purple-400 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.15)]' 
+                    : 'bg-slate-950/50 border-slate-800 hover:border-slate-700 text-slate-300'
+              }"
+            >
+              <span>${item.text}</span>
+              ${isMatched ? `
+                <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>` : ''
+              }
+            </button>
+          `;
+        }).join('');
+
+        container.innerHTML = `
+          <div>
+            <div class="mb-4 text-right">
+              <span class="text-xs font-bold text-slate-400 block mb-1">קישור מולקולרי ופיזיולוגי:</span>
+              <p class="text-sm text-slate-300 font-medium">${task.instruction}</p>
             </div>
-
-            <h2 className="text-3xl md:text-4xl font-black text-white leading-tight">
-              כל הכבוד, {userName}! <br />
-              <span className="bg-gradient-to-l from-cyan-400 via-indigo-300 to-purple-400 bg-clip-text text-transparent">השלמת בהצלחה את המסע המטבולי!</span>
-            </h2>
-
-            <p className="text-slate-300 text-sm md:text-base mt-4 max-w-xl mx-auto leading-relaxed">
-              ניווטת בהצלחה בין כל האתגרים והמכשולים הביולוגיים: פיענחת את מאפייני רקמת השומן הויסרלית, סנכרנת את ההורמונים, חילקת את סיבוכי ה-3M, הגנת על מסת השריר מפני סרקופניה וניפצת את הסטיגמות.
-            </p>
-
-            {/* Scorecard Box using Percentages as requested */}
-            <div className="grid grid-cols-2 gap-4 max-w-md mx-auto my-8">
-              <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl text-center">
-                <span className="text-xs text-slate-400 block font-semibold">ציון מטבולי סופי</span>
-                <span className="text-2xl font-black text-cyan-400 mt-1 block">
-                  {finalPercentage}%
-                </span>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-6 relative">
+              <div class="space-y-2">
+                <h5 class="text-xs font-black text-indigo-400 text-right mb-2">איתות / מצב פיזיולוגי</h5>
+                ${leftHTML}
               </div>
-              <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl text-center">
-                <span className="text-xs text-slate-400 block font-semibold">דירוג קליני</span>
-                <span className="text-2xl font-black text-indigo-400 mt-1 block">
-                  {finalPercentage >= 90 ? 'מומחה בכיר' : finalPercentage >= 70 ? 'מפענח מטבולי' : 'חוקר מתחיל'}
-                </span>
+              <div class="space-y-2">
+                <h5 class="text-xs font-black text-purple-400 text-right mb-2">תוצאה / השפעה קלינית</h5>
+                ${rightHTML}
               </div>
             </div>
-
-            {/* CERTIFICATE DISPLAY */}
-            <div className="bg-gradient-to-b from-slate-900 to-indigo-950/80 border-4 border-double border-indigo-500/40 p-8 rounded-3xl max-w-xl mx-auto my-8 relative shadow-2xl overflow-hidden text-right">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="text-center border-b border-indigo-500/20 pb-4 mb-6">
-                <h3 className="text-xs font-black text-indigo-400 tracking-widest uppercase">אישור סיום סימולציה</h3>
-                <h4 className="text-xl font-black text-slate-100 mt-1">MetaboLex: מפענח מערכות מטבוליות מורכבות</h4>
-              </div>
-
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                אישור זה מוענק בזאת ל- <strong className="text-cyan-300 text-base">{userName}</strong>, אשר פתר בהצטיינות את מבוכי הסימולציה בציון סופי מדהים של <strong className="text-emerald-400 text-base">{finalPercentage}%</strong>, פיענח את התקשורת הבין-תאית וההורמונלית, והראה הבנה עמוקה של פיזיולוגיית גוף האדם, שימור מסת השריר ויצירת סביבה טיפולית רגישה ומקצועית.
+          </div>
+        `;
+      } 
+      else if (task.type === 'stigma_game') {
+        const statement = task.statements[state.currentStigmaIndex];
+        
+        container.innerHTML = `
+          <div>
+            <div class="mb-4 text-right">
+              <span class="text-xs font-bold text-slate-400 block mb-1">מאתר מיתוסים קליני:</span>
+              <p class="text-sm text-slate-300 font-medium">${task.instruction}</p>
+            </div>
+            <div class="bg-slate-950/80 border border-slate-800/80 p-6 rounded-2xl my-6 text-center shadow-inner relative overflow-hidden">
+              <span class="text-[10px] font-black bg-indigo-500/15 text-indigo-300 px-2 py-1 rounded-full uppercase tracking-wider">
+                היגד ${state.currentStigmaIndex + 1} מתוך ${task.statements.length}
+              </span>
+              <p class="text-md md:text-lg font-black text-slate-100 my-6 max-w-xl mx-auto leading-relaxed">
+                "${statement.text}"
               </p>
-
-              <div className="flex justify-between items-end pt-4 border-t border-indigo-500/20 text-xs text-slate-400">
-                <div>
-                  <p className="font-semibold text-slate-300">תאריך סיום המסע:</p>
-                  <p className="font-mono text-cyan-400/90">{new Date().toLocaleDateString('he-IL')}</p>
-                </div>
-                <div className="text-center">
-                  <div className="w-10 h-10 mx-auto mb-1 rounded-full bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-                    <Shield className="w-5 h-5 text-indigo-400" />
-                  </div>
-                  <p className="text-[10px] font-black text-slate-300">חותמת מוסמך MetaboLex</p>
-                </div>
+              
+              <div id="stigma-step-feedback" class="hidden"></div>
+              
+              <div id="stigma-actions-container" class="flex gap-4 max-w-md mx-auto">
+                <button onclick="handleStigmaDecision('stigma')" class="flex-1 bg-gradient-to-tr from-rose-600 to-rose-500 hover:from-rose-500 hover:to-rose-400 text-white font-black py-3 px-4 rounded-xl text-xs shadow-lg shadow-rose-950/30 transition-all transform hover:-translate-y-0.5">
+                  💥 סטיגמה מיושנת
+                </button>
+                <button onclick="handleStigmaDecision('fact')" class="flex-1 bg-gradient-to-tr from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-black py-3 px-4 rounded-xl text-xs shadow-lg shadow-emerald-950/30 transition-all transform hover:-translate-y-0.5">
+                  🧬 עובדה ביולוגית
+                </button>
               </div>
             </div>
-
-            {/* Restart Game Button */}
-            <button 
-              onClick={handleStartGame}
-              className="inline-flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-indigo-600 text-slate-950 font-black px-6 py-3 rounded-xl hover:from-cyan-400 hover:to-indigo-500 transition-all shadow-lg"
-            >
-              <RotateCcw className="w-4 h-4 text-slate-950" />
-              הפעל מחדש את הסימולציה
-            </button>
           </div>
-        )}
-
-      </main>
-
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-slate-900 mt-16 py-6 bg-slate-950 text-center text-[11px] text-slate-500">
-        <p className="max-w-2xl mx-auto px-4 leading-relaxed">
-          MetaboLex סימולטור מטבולי אינטראקטיבי מתקדם v2.0 - נבנה לחוויית גילוי חוקרת ומבוססת מנגנונים פיזיולוגיים וקליניים.
-        </p>
-      </footer>
-    </div>
-  );
-}
+        `;
+      }
+    }
+  </script>
+</body>
+</html>
